@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "720571740911",
+    "project_id": "velix-messenger-90f85",
+    "storage_bucket": "velix-messenger-90f85.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:720571740911:android:9f15d6a0b4c7f25a2aa11a",
+        "android_client_info": {
+          "package_name": "com.example.velix_messenger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUQ-OMOTWBeK2aDXXOaZ4bf7ITr2dsQX0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
