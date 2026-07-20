@@ -12,7 +12,20 @@
           "package_name": "com.example.velix_messenger"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "720571740911-9fopl2eddnqq37rdjtvg5a4ukd73ofmu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.velix_messenger",
+            "certificate_hash": "11bf3074a9fb1579211c699cd71a56ba0af7e4bb"
+          }
+        },
+        {
+          "client_id": "720571740911-ed839rkbldi45bertpgun5oj2mht6nmh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCUQ-OMOTWBeK2aDXXOaZ4bf7ITr2dsQX0"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "720571740911-ed839rkbldi45bertpgun5oj2mht6nmh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

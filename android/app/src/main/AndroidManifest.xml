@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+ <!-- Contacts Permission -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    
     <application
         android:label="velix_messenger"
         android:name="${applicationName}"
