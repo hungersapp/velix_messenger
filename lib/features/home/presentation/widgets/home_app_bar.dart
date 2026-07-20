@@ -1,88 +1,107 @@
 import 'package:flutter/material.dart';
 
+import '../../../user/domain/entities/user_entity.dart';
+
 class HomeAppBar extends StatelessWidget
     implements PreferredSizeWidget {
   const HomeAppBar({
     super.key,
-    this.photoUrl = '',
+    required this.user,
     this.onSearch,
     this.onProfile,
   });
 
-  final String photoUrl;
+  final UserEntity? user;
   final VoidCallback? onSearch;
   final VoidCallback? onProfile;
 
   @override
-  Size get preferredSize => const Size.fromHeight(72);
-
-  @override
   Widget build(BuildContext context) {
-    return AppBar(
-      automaticallyImplyLeading: false,
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      toolbarHeight: 72,
-      centerTitle: false,
+    final theme = Theme.of(context);
 
+    return AppBar(
+      elevation: 0,
+      centerTitle: false,
+      titleSpacing: 16,
       title: Row(
         children: [
           Image.asset(
             'assets/images/app_logo.png',
-            height: 38,
-          ),
-
-          const SizedBox(width: 12),
-
-          const Expanded(
-            child: Text(
-              'Velix',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-                letterSpacing: .4,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-
-          Container(
-            height: 44,
-            width: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF4F5F8),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: IconButton(
-              onPressed: onSearch,
-              icon: const Icon(
-                Icons.search_rounded,
-                color: Colors.black87,
-              ),
-            ),
+            width: 45,
+            height: 45,
+            fit: BoxFit.contain,
           ),
 
           const SizedBox(width: 10),
 
-          GestureDetector(
-            onTap: onProfile,
-            child: CircleAvatar(
-              radius: 21,
-              backgroundColor: const Color(0xFFF4F5F8),
-              backgroundImage:
-                  photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-              child: photoUrl.isEmpty
-                  ? const Icon(
-                      Icons.person_rounded,
-                      color: Colors.black54,
-                    )
-                  : null,
+          Text(
+            'Velix',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
       ),
+      actions: [
+        IconButton(
+          onPressed: onSearch,
+          icon: const Icon(Icons.search),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.only(
+            left: 4,
+            right: 12,
+          ),
+          child: InkWell(
+            onTap: onProfile,
+            borderRadius: BorderRadius.circular(24),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.blueGrey.shade100,
+              backgroundImage: _buildProfileImage(),
+              child: _buildProfileImage() == null
+                  ? Text(
+                      _initials(user?.name),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+        ),
+      ],
     );
   }
+
+  ImageProvider? _buildProfileImage() {
+    if (user == null) return null;
+
+    if (user!.photoUrl.trim().isEmpty) {
+      return null;
+    }
+
+    return NetworkImage(user!.photoUrl);
+  }
+
+  String _initials(String? name) {
+    if (name == null || name.trim().isEmpty) {
+      return 'U';
+    }
+
+    final parts = name.trim().split(' ');
+
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+
+    return (parts.first.substring(0, 1) +
+            parts.last.substring(0, 1))
+        .toUpperCase();
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

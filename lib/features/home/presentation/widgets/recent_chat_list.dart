@@ -8,10 +8,15 @@ class RecentChatList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 8, bottom: 100),
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 8,
+          ),
           child: Text(
             'Recent Chats',
             style: TextStyle(
