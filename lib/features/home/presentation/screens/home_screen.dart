@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../user/domain/entities/user_entity.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../widgets/home_app_bar.dart';
-import '../widgets/new_chat_fab.dart';
+//import '../widgets/new_chat_fab.dart';
 import '../widgets/recent_chat_list.dart';
 import '../widgets/time_capsule_section.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../app/app_routes.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -74,10 +76,11 @@ class _HomeContent extends StatelessWidget {
         ),
       ),
 
-      floatingActionButton: NewChatFab(
+      floatingActionButton: FloatingActionButton(
   onPressed: () {
-    // TODO: Navigate to New Chat Screen
+    context.push(AppRoutes.contacts);
   },
+  child: const Icon(Icons.add),
 ),
     );
   }

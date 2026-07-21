@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../features/splash/presentation/screens/splash_screen.dart';
+import 'app_pages.dart';
 import 'app_theme.dart';
 
 class VelixApp extends StatelessWidget {
@@ -8,13 +8,13 @@ class VelixApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Velix',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: const SplashScreen(),
+      routerConfig: AppPages.router,
     );
   }
 }
