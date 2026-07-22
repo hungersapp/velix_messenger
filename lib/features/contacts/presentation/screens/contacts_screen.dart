@@ -8,6 +8,13 @@ import '../widgets/contact_tile.dart';
 import '../widgets/invite_tile.dart';
 import '../widgets/search_bar.dart';
 
+//import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:go_router/go_router.dart';
+
+import '../../../../app/app_routes.dart';
+import '../../../chat/presentation/providers/chat_provider.dart';
+import '../../../user/presentation/providers/current_user_provider.dart';
 //import 'package:go_router/go_router.dart';
 //import '../../../../app/routes/app_routes.dart';
 
@@ -126,12 +133,35 @@ class _ContactsScreenState
             subtitle: contact.phoneNumber,
             photoUrl: contact.photoUrl,
             isOnline: false,
-            onTap: () {
-              // TODO:
-              // Conversation Create
-              // Navigate Chat Screen
-            },
-          );
+             onTap: () async {
+  final currentUser =
+      ref.read(currentUserProvider).value;
+
+  if (currentUser == null || contact.uid == null) {
+    return;
+  }
+
+  final conversationId = await ref
+      .read(openChatUseCaseProvider)
+      .call(
+        currentUserUid: currentUser.uid,
+        otherUserUid: contact.uid!,
+      );
+
+  if (!context.mounted) return;
+
+  context.push(
+    AppRoutes.chat,
+    extra: {
+      'conversationId': conversationId,
+      'currentUserId': currentUser.uid,
+      'otherUserId': contact.uid!,
+      'userName': contact.name,
+      'profileImageUrl': contact.photoUrl,
+    },
+  );
+},
+          );  
         }
 
         return InviteTile(

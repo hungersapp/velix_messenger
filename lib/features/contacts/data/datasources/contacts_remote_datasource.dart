@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/contact_model.dart';
 
+
 abstract class ContactsRemoteDataSource {
   Future<List<ContactModel>> matchVelixUsers(
     List<ContactModel> contacts,
@@ -33,11 +34,16 @@ class ContactsRemoteDataSourceImpl
       for (final user in users) {
         final data = user.data();
 
-        final firestoreNumber = _normalizePhoneNumber(
-          data['mobileNumber'] ?? '',
-        );
+       final firestoreNumber = _normalizePhoneNumber(
+  data['mobileNumber'] ?? '',
+);
 
-        if (firestoreNumber == contact.phoneNumber) {
+final contactNumber = _normalizePhoneNumber(
+  contact.phoneNumber,
+);
+
+
+if (firestoreNumber == contactNumber) {
           updatedContact = contact.copyWith(
             isVelixUser: true,
             uid: data['uid'],
