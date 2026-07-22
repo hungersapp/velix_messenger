@@ -35,19 +35,32 @@ class OpenChatUseCase {
     final now = DateTime.now();
 
     final newConversation = Conversation(
-      id: '',
-      conversationKey: conversationKey,
-      participants: participants,
-      lastMessage: '',
-      lastMessageSenderId: '',
-      lastMessageType: '',
-      typingStatus: {
-        for (final user in participants) user: false,
-      },
-      createdAt: now,
-      updatedAt: now,
-      lastMessageAt: now,
-    );
+  id: '',
+  conversationKey: conversationKey,
+  participants: participants,
+  lastMessage: '',
+  lastMessageSenderId: '',
+  lastMessageType: '',
+  typingStatus: {
+    for (final user in participants) user: false,
+  },
+  createdAt: now,
+  updatedAt: now,
+  lastMessageAt: now,
+
+  // V2 fields
+  unreadCount: {
+    for (final user in participants) user: 0,
+  },
+
+  lastReadAt: {
+    for (final user in participants) user: null,
+  },
+
+  isGroup: false,
+  groupName: null,
+  groupPhotoUrl: null,
+);
 
     return repository.createConversation(
       newConversation,

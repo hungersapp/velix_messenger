@@ -29,6 +29,16 @@ class ChatRepositoryImpl implements ChatRepository {
       createdAt: Timestamp.fromDate(conversation.createdAt),
       updatedAt: Timestamp.fromDate(conversation.updatedAt),
       lastMessageAt: Timestamp.fromDate(conversation.lastMessageAt),
+      unreadCount: conversation.unreadCount,
+lastReadAt: conversation.lastReadAt.map(
+  (key, value) => MapEntry(
+    key,
+    value != null ? Timestamp.fromDate(value) : null,
+  ),
+),
+isGroup: conversation.isGroup,
+groupName: conversation.groupName,
+groupPhotoUrl: conversation.groupPhotoUrl,
     );
 
     return remoteDataSource.createConversation(model);
@@ -46,27 +56,36 @@ class ChatRepositoryImpl implements ChatRepository {
     if (model == null) return null;
 
     return Conversation(
-      id: model.id,
-      conversationKey: model.conversationKey,
-      participants: model.participants,
-      lastMessage: model.lastMessage,
-      lastMessageSenderId: model.lastMessageSenderId,
-      lastMessageType: model.lastMessageType,
-      typingStatus: model.typingStatus,
-      createdAt: model.createdAt.toDate(),
-      updatedAt: model.updatedAt.toDate(),
-      lastMessageAt: model.lastMessageAt.toDate(),
-    );
+  id: model.id,
+  conversationKey: model.conversationKey,
+  participants: model.participants,
+  lastMessage: model.lastMessage,
+  lastMessageSenderId: model.lastMessageSenderId,
+  lastMessageType: model.lastMessageType,
+  typingStatus: model.typingStatus,
+  createdAt: model.createdAt.toDate(),
+  updatedAt: model.updatedAt.toDate(),
+  lastMessageAt: model.lastMessageAt.toDate(),
+  unreadCount: model.unreadCount,
+  lastReadAt: model.lastReadAt.map(
+    (key, value) => MapEntry(
+      key,
+      value?.toDate(),
+    ),
+  ),
+  isGroup: model.isGroup,
+  groupName: model.groupName,
+  groupPhotoUrl: model.groupPhotoUrl,
+);
   }
 
-  @override
-  Future<Conversation?> getConversationByKey(
-    String conversationKey,
-  ) async {
-    final model =
-        await remoteDataSource.getConversationByKey(
-      conversationKey,
-    );
+ @override
+Future<Conversation?> getConversationByKey(
+  String conversationKey,
+) async {
+  final model = await remoteDataSource.getConversationByKey(
+    conversationKey,
+  );
 
     if (model == null) return null;
 
@@ -81,6 +100,18 @@ class ChatRepositoryImpl implements ChatRepository {
       createdAt: model.createdAt.toDate(),
       updatedAt: model.updatedAt.toDate(),
       lastMessageAt: model.lastMessageAt.toDate(),
+      unreadCount: model.unreadCount,
+
+lastReadAt: model.lastReadAt.map(
+  (key, value) => MapEntry(
+    key,
+    value?.toDate(),
+  ),
+),
+
+isGroup: model.isGroup,
+groupName: model.groupName,
+groupPhotoUrl: model.groupPhotoUrl,
     );
   }
 
@@ -104,38 +135,53 @@ class ChatRepositoryImpl implements ChatRepository {
         createdAt: model.createdAt.toDate(),
         updatedAt: model.updatedAt.toDate(),
         lastMessageAt: model.lastMessageAt.toDate(),
+        unreadCount: model.unreadCount,
+lastReadAt: model.lastReadAt.map(
+  (key, value) => MapEntry(
+    key,
+    value?.toDate(),
+  ),
+),
+isGroup: model.isGroup,
+groupName: model.groupName,
+groupPhotoUrl: model.groupPhotoUrl,
       );
     });
   }
 
   @override
-  Stream<List<Conversation>> getConversations(
-    String userId,
-  ) {
-    return remoteDataSource.getConversations(userId).map(
-          (models) => models
-              .map(
-                (model) => Conversation(
-                  id: model.id,
-                  conversationKey: model.conversationKey,
-                  participants: model.participants,
-                  lastMessage: model.lastMessage,
-                  lastMessageSenderId:
-                      model.lastMessageSenderId,
-                  lastMessageType:
-                      model.lastMessageType,
-                  typingStatus: model.typingStatus,
-                  createdAt:
-                      model.createdAt.toDate(),
-                  updatedAt:
-                      model.updatedAt.toDate(),
-                  lastMessageAt:
-                      model.lastMessageAt.toDate(),
-                ),
-              )
-              .toList(),
-        );
-  }
+Stream<List<Conversation>> getConversations(
+  String userId,
+) {
+  return remoteDataSource.getConversations(userId).map(
+    (models) => models
+        .map(
+          (model) => Conversation(
+            id: model.id,
+            conversationKey: model.conversationKey,
+            participants: model.participants,
+            lastMessage: model.lastMessage,
+            lastMessageSenderId: model.lastMessageSenderId,
+            lastMessageType: model.lastMessageType,
+            typingStatus: model.typingStatus,
+            createdAt: model.createdAt.toDate(),
+            updatedAt: model.updatedAt.toDate(),
+            lastMessageAt: model.lastMessageAt.toDate(),
+            unreadCount: model.unreadCount,
+            lastReadAt: model.lastReadAt.map(
+              (key, value) => MapEntry(
+                key,
+                value?.toDate(),
+              ),
+            ),
+            isGroup: model.isGroup,
+            groupName: model.groupName,
+            groupPhotoUrl: model.groupPhotoUrl,
+          ),
+        )
+        .toList(),
+  );
+}
 
   @override
 Future<void> updateConversation({
@@ -157,15 +203,39 @@ Future<void> updateConversation({
     Message message,
   ) async {
     final model = MessageModel(
-      id: message.id,
-      conversationId: message.conversationId,
-      senderId: message.senderId,
-      message: message.message,
-      status: message.status,
-      sentAt: Timestamp.fromDate(message.sentAt),
-    );
+  id: message.id,
+  conversationId: message.conversationId,
+  senderId: message.senderId,
+  messageType: message.messageType,
+  message: message.message,
+  mediaUrl: message.mediaUrl,
+  thumbnailUrl: message.thumbnailUrl,
+  fileName: message.fileName,
+  fileSize: message.fileSize,
+  mimeType: message.mimeType,
+  status: message.status,
+  sentAt: Timestamp.fromDate(message.sentAt),
+  deliveredAt: message.deliveredAt != null
+      ? Timestamp.fromDate(message.deliveredAt!)
+      : null,
+  readAt: message.readAt != null
+      ? Timestamp.fromDate(message.readAt!)
+      : null,
+  replyToMessageId: message.replyToMessageId,
+  isEdited: message.isEdited,
+  isDeleted: message.isDeleted,
+  deletedFor: message.deletedFor,
+);
 
     await remoteDataSource.sendMessage(model);
+
+    await remoteDataSource.updateConversation(
+    conversationId: message.conversationId,
+    lastMessage: message.message,
+    lastMessageSenderId: message.senderId,
+    lastMessageType: message.messageType,// அல்லது model.messageType
+  );
+
   }
 
   @override
@@ -176,14 +246,25 @@ Future<void> updateConversation({
           (models) => models
               .map(
                 (model) => Message(
-                  id: model.id,
-                  conversationId:
-                      model.conversationId,
-                  senderId: model.senderId,
-                  message: model.message,
-                  status: model.status,
-                  sentAt: model.sentAt.toDate(),
-                ),
+  id: model.id,
+  conversationId: model.conversationId,
+  senderId: model.senderId,
+  messageType: model.messageType,
+  message: model.message,
+  mediaUrl: model.mediaUrl,
+  thumbnailUrl: model.thumbnailUrl,
+  fileName: model.fileName,
+  fileSize: model.fileSize,
+  mimeType: model.mimeType,
+  status: model.status,
+  sentAt: model.sentAt.toDate(),
+  deliveredAt: model.deliveredAt?.toDate(),
+  readAt: model.readAt?.toDate(),
+  replyToMessageId: model.replyToMessageId,
+  isEdited: model.isEdited,
+  isDeleted: model.isDeleted,
+  deletedFor: model.deletedFor,
+)
               )
               .toList(),
         );
@@ -201,4 +282,38 @@ Future<void> updateConversation({
       isTyping: isTyping,
     );
   }
+  @override
+Future<void> updateMessageStatus({
+  required String conversationId,
+  required String messageId,
+  required String status,
+}) {
+  return remoteDataSource.updateMessageStatus(
+    conversationId: conversationId,
+    messageId: messageId,
+    status: status,
+  );
+}
+
+@override
+Future<void> markMessageAsDelivered({
+  required String conversationId,
+  required String messageId,
+}) {
+  return remoteDataSource.markMessageAsDelivered(
+    conversationId: conversationId,
+    messageId: messageId,
+  );
+}
+
+@override
+Future<void> markMessageAsRead({
+  required String conversationId,
+  required String messageId,
+}) {
+  return remoteDataSource.markMessageAsRead(
+    conversationId: conversationId,
+    messageId: messageId,
+  );
+}
 }

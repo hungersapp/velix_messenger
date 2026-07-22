@@ -62,14 +62,25 @@ class _ChatScreenState
     if (text.isEmpty) return;
 
     final message = Message(
-      id: '',
-      conversationId: widget.conversationId,
-      senderId: widget.currentUserId,
-      message: text,
-      status: 'sent',
-      sentAt: DateTime.now(),
-    );
-
+  id: '',
+  conversationId: widget.conversationId,
+  senderId: widget.currentUserId,
+  messageType: 'text',
+  message: text,
+  mediaUrl: null,
+  thumbnailUrl: null,
+  fileName: null,
+  fileSize: null,
+  mimeType: null,
+  status: 'sent',
+  sentAt: DateTime.now(),
+  deliveredAt: null,
+  readAt: null,
+  replyToMessageId: null,
+  isEdited: false,
+  isDeleted: false,
+  deletedFor: const [],
+);
     await ref
         .read(messageControllerProvider.notifier)
         .sendMessage(message);

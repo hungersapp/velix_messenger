@@ -117,11 +117,12 @@ Stream<ConversationModel?> watchConversationById(
     MessageModel message,
   ) async {
     await _conversationCollection
-        .doc(message.conversationId)
-        .collection('messages')
-        .add(
-          message.toMap(),
-        );
+    .doc(message.conversationId)
+    .collection('messages')
+    .doc(message.id)
+    .set(
+      message.toMap(),
+    );
   }
 
   @override
@@ -160,8 +161,8 @@ Stream<ConversationModel?> watchConversationById(
       'lastMessage': lastMessage,
       'lastMessageSenderId': lastMessageSenderId,
       'lastMessageType': lastMessageType,
-      'updatedAt': Timestamp.now(),
-      'lastMessageAt': Timestamp.now(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'lastMessageAt': FieldValue.serverTimestamp(),
     });
   }
   
@@ -177,4 +178,48 @@ Stream<ConversationModel?> watchConversationById(
       'typingStatus.$userId': isTyping,
     });
   }
+  @override
+Future<void> updateMessageStatus({
+  required String conversationId,
+  required String messageId,
+  required String status,
+}) async {
+  await _conversationCollection
+      .doc(conversationId)
+      .collection('messages')
+      .doc(messageId)
+      .update({
+    'status': status,
+  });
+}
+
+@override
+Future<void> markMessageAsDelivered({
+  required String conversationId,
+  required String messageId,
+}) async {
+  await _conversationCollection
+      .doc(conversationId)
+      .collection('messages')
+      .doc(messageId)
+      .update({
+    'status': 'delivered',
+    'deliveredAt': FieldValue.serverTimestamp(),
+  });
+}
+
+@override
+Future<void> markMessageAsRead({
+  required String conversationId,
+  required String messageId,
+}) async {
+  await _conversationCollection
+      .doc(conversationId)
+      .collection('messages')
+      .doc(messageId)
+      .update({
+    'status': 'read',
+    'readAt': FieldValue.serverTimestamp(),
+  });
+}
 }

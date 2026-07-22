@@ -17,6 +17,11 @@ abstract class ChatRepository {
     String conversationKey,
   );
 
+  /// Watch conversation in realtime
+  Stream<Conversation?> watchConversationById(
+    String conversationId,
+  );
+
   /// Get all conversations of a user
   Stream<List<Conversation>> getConversations(
     String userId,
@@ -32,7 +37,7 @@ abstract class ChatRepository {
     String conversationId,
   );
 
-  /// Update conversation last message
+  /// Update conversation metadata
   Future<void> updateConversation({
     required String conversationId,
     required String lastMessage,
@@ -40,15 +45,31 @@ abstract class ChatRepository {
     required String lastMessageType,
   });
 
-  /// Watch conversation in realtime
-  Stream<Conversation?> watchConversationById(
-    String conversationId,
-  );
-
   /// Update typing status
   Future<void> updateTypingStatus({
     required String conversationId,
     required String userId,
     required bool isTyping,
+  });
+
+  // ===========================
+  // Sprint 2.4B
+  // Message Status
+  // ===========================
+
+  Future<void> updateMessageStatus({
+    required String conversationId,
+    required String messageId,
+    required String status,
+  });
+
+  Future<void> markMessageAsDelivered({
+    required String conversationId,
+    required String messageId,
+  });
+
+  Future<void> markMessageAsRead({
+    required String conversationId,
+    required String messageId,
   });
 }
