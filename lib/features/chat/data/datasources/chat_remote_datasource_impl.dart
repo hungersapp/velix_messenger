@@ -113,17 +113,22 @@ Stream<ConversationModel?> watchConversationById(
   }
 
   @override
-  Future<void> sendMessage(
+   Future<void> sendMessage(
     MessageModel message,
   ) async {
-    await _conversationCollection
-    .doc(message.conversationId)
-    .collection('messages')
-    .doc(message.id)
-    .set(
-      message.toMap(),
-    );
-  }
+   final messageRef = _conversationCollection
+      .doc(message.conversationId)
+      .collection('messages')
+      .doc();
+
+    final newMessage = message.copyWith(
+    id: messageRef.id,
+  );
+
+    await messageRef.set(
+    newMessage.toMap(),
+  );
+}
 
   @override
   Stream<List<MessageModel>> getMessages(

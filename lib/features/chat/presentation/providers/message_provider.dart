@@ -23,7 +23,7 @@ class MessageController extends StateNotifier<AsyncValue<void>> {
 
   Future<void> sendMessage(
     Message message,
-  ) async {
+      ) async {
     state = const AsyncLoading();
 
     try {
@@ -37,7 +37,7 @@ class MessageController extends StateNotifier<AsyncValue<void>> {
             conversationId: message.conversationId,
             lastMessage: message.message,
             lastMessageSenderId: message.senderId,
-            lastMessageType: 'text',
+            lastMessageType: message.messageType,
           );
 
       state = const AsyncData(null);
@@ -45,6 +45,50 @@ class MessageController extends StateNotifier<AsyncValue<void>> {
       state = AsyncError(e, st);
     }
   }
+  Future<void> updateMessageStatus({
+  required String conversationId,
+  required String messageId,
+  required String status,
+}) async {
+  try {
+    await ref.read(updateMessageStatusUseCaseProvider).call(
+      conversationId: conversationId,
+      messageId: messageId,
+      status: status,
+    );
+  } catch (e, st) {
+    state = AsyncError(e, st);
+  }
+}
+
+Future<void> markMessageAsDelivered({
+  required String conversationId,
+  required String messageId,
+}) async {
+  try {
+    await ref.read(markMessageAsDeliveredUseCaseProvider).call(
+      conversationId: conversationId,
+      messageId: messageId,
+    );
+  } catch (e, st) {
+    state = AsyncError(e, st);
+  }
+}
+
+Future<void> markMessageAsRead({
+  required String conversationId,
+  required String messageId,
+}) async {
+  try {
+    await ref.read(markMessageAsReadUseCaseProvider).call(
+      conversationId: conversationId,
+      messageId: messageId,
+    );
+  } catch (e, st) {
+    state = AsyncError(e, st);
+  }
+}
+
 }
 
 /// Message Controller Provider

@@ -1,31 +1,121 @@
 import 'package:flutter/material.dart';
 
-class MessageInput extends StatefulWidget {
+import 'dart:io';
+
+import '../../services/media_picker_service.dart';
+import '../providers/media_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class MessageInput extends ConsumerStatefulWidget {
+  final String conversationId;
+  final String senderId;
+
   final TextEditingController controller;
   final VoidCallback? onEmojiPressed;
   final VoidCallback? onVelixPressed;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onSend;
   final VoidCallback? onVoice;
+  final Future<void> Function(String imageUrl)? onImageSelected;
 
   const MessageInput({
     super.key,
+    required this.conversationId,
+    required this.senderId,
     required this.controller,
     this.onEmojiPressed,
     this.onVelixPressed,
     this.onChanged,
     this.onSend,
     this.onVoice,
+    this.onImageSelected,
   });
 
   @override
-  State<MessageInput> createState() =>
+  ConsumerState<MessageInput> createState() =>
       _MessageInputState();
+      
 }
 
 class _MessageInputState
-    extends State<MessageInput> {
+    extends ConsumerState<MessageInput> {
+      final MediaPickerService _picker =
+    MediaPickerService();
+    Future<void> _pickImage() async {
+  final File? image =
+      await _picker.pickImageFromGallery();
 
+  if (image == null) return;
+
+debugPrint("1. Gallery selected");
+  final File uploadFile =
+      await _picker.compressImage(image) ??
+      image;
+debugPrint("2. Image compressed");
+
+  final imageUrl =
+      await ref
+          .read(mediaControllerProvider.notifier)
+          .uploadImage(
+          conversationId: widget.conversationId,
+           senderId: widget.senderId,
+          filePath: uploadFile.path,
+        );
+
+  if (widget.onImageSelected != null) {
+
+debugPrint("3. Upload completed: $imageUrl");
+  await widget.onImageSelected!(imageUrl);
+  debugPrint("4. Message created");
+}
+}
+void _showAttachmentSheet() {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(20),
+      ),
+    ),
+    builder: (context) {
+      return SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo),
+              title: const Text('Gallery'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _pickImage();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam),
+              title: const Text('Video'),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.insert_drive_file),
+              title: const Text('Document'),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
   bool get _hasText =>
       widget.controller.text.trim().isNotEmpty;
 
@@ -109,7 +199,7 @@ class _MessageInputState
               child: InkWell(
                 customBorder:
                     const CircleBorder(),
-                onTap: widget.onVelixPressed,
+                onTap: _showAttachmentSheet,
                 child: const SizedBox(
                   width: 46,
                   height: 46,

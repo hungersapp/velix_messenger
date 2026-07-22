@@ -95,14 +95,39 @@ class _ChatScreenState
           isTyping: false,
         );
   }
+Future<void> _sendImageMessage(String imageUrl) async {
+  final message = Message(
+    id: '',
+    conversationId: widget.conversationId,
+    senderId: widget.currentUserId,
+    messageType: 'image',
+    message: '',
+    mediaUrl: imageUrl,
+    thumbnailUrl: null,
+    fileName: null,
+    fileSize: null,
+    mimeType: 'image/jpeg',
+    status: 'sent',
+    sentAt: DateTime.now(),
+    deliveredAt: null,
+    readAt: null,
+    replyToMessageId: null,
+    isEdited: false,
+    isDeleted: false,
+    deletedFor: const [],
+  );
 
+  await ref
+      .read(messageControllerProvider.notifier)
+      .sendMessage(message);
+}
   @override
   Widget build(BuildContext context) {
     final conversationAsync = ref.watch(
       conversationByIdProvider(
         widget.conversationId,
       ),
-    );
+          );
 
     return Scaffold(
       appBar: conversationAsync.when(
@@ -167,6 +192,8 @@ class _ChatScreenState
           ),
 
           MessageInput(
+           conversationId: widget.conversationId,
+           senderId: widget.currentUserId,
             controller: _controller,
 
             onChanged: (value) {
@@ -187,6 +214,7 @@ class _ChatScreenState
             },
 
             onSend: _sendMessage,
+            onImageSelected: _sendImageMessage,
 
             onEmojiPressed: () {
               // TODO

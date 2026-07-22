@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 class MessageBubble extends StatelessWidget {
   final String message;
+  final String messageType;
+  final String? mediaUrl;
   final DateTime sentAt;
   final bool isMe;
   final String status;
@@ -9,6 +11,8 @@ class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
+    required this.messageType,
+    this.mediaUrl,
     required this.sentAt,
     required this.isMe,
     required this.status,
@@ -24,21 +28,33 @@ class MessageBubble extends StatelessWidget {
 
   IconData _statusIcon() {
     switch (status) {
-      case 'read':
-        return Icons.done_all;
+      case 'sending':
+        return Icons.schedule;
+      case 'sent':
+        return Icons.done;
       case 'delivered':
+        return Icons.done_all;
+      case 'read':
         return Icons.done_all;
       default:
         return Icons.done;
     }
   }
 
-  Color? _statusColor(BuildContext context) {
-    if (status == 'read') {
-      return Colors.blue;
+  Color _statusColor(BuildContext context) {
+    switch (status) {
+      case 'read':
+        return Colors.blue;
+      case 'sending':
+        return Colors.grey;
+      default:
+        return isMe
+            ? Theme.of(context)
+                .colorScheme
+                .onPrimary
+                .withValues(alpha: 0.75)
+            : Colors.grey;
     }
-
-    return Theme.of(context).textTheme.bodySmall?.color;
   }
 
   @override
@@ -65,12 +81,8 @@ class MessageBubble extends StatelessWidget {
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(18),
                 topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(
-                  isMe ? 18 : 4,
-                ),
-                bottomRight: Radius.circular(
-                  isMe ? 4 : 18,
-                ),
+                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 18),
               ),
             ),
             child: Padding(
@@ -85,15 +97,61 @@ class MessageBubble extends StatelessWidget {
                     CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    message,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: isMe
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSurface,
+
+                  /// IMAGE MESSAGE
+                  if (messageType == 'image' &&
+                      mediaUrl != null &&
+                      mediaUrl!.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        mediaUrl!,
+                        width: 220,
+                        fit: BoxFit.cover,
+                        loadingBuilder:
+                            (context, child, progress) {
+                          if (progress == null) {
+                            return child;
+                          }
+
+                          return const SizedBox(
+                            width: 220,
+                            height: 220,
+                            child: Center(
+                              child:
+                                  CircularProgressIndicator(),
+                            ),
+                          );
+                        },
+                        errorBuilder:
+                            (context, error, stackTrace) {
+                          return const SizedBox(
+                            width: 220,
+                            height: 220,
+                            child: Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 50,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+
+                  /// TEXT MESSAGE
+                  else
+                    Text(
+                      message,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: isMe
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onSurface,
+                      ),
                     ),
-                  ),
+
                   const SizedBox(height: 6),
+
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

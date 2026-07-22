@@ -60,13 +60,13 @@ class MessageList extends ConsumerWidget {
                         index];
 
             return MessageBubble(
-              message: message.message,
-              sentAt: message.sentAt,
-              isMe:
-                  message.senderId ==
-                  currentUserId,
-              status: message.status,
-            );
+  message: message.message,
+  messageType: message.messageType,
+  mediaUrl: message.mediaUrl,
+  sentAt: message.sentAt,
+  isMe: message.senderId == currentUserId,
+  status: message.status,
+);
           },
         );
       },

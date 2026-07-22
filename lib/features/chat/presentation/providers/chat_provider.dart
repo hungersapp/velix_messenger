@@ -15,6 +15,9 @@ import '../../domain/usecases/send_message_usecase.dart';
 import '../../domain/usecases/update_conversation_usecase.dart';
 import '../../domain/usecases/update_typing_status_usecase.dart';
 import '../../domain/usecases/watch_conversation_by_id_usecase.dart';
+import '../../domain/usecases/mark_message_as_delivered_usecase.dart';
+import '../../domain/usecases/mark_message_as_read_usecase.dart';
+import '../../domain/usecases/update_message_status_usecase.dart';
 
 /// Firestore
 final firestoreProvider = Provider<FirebaseFirestore>(
@@ -116,5 +119,29 @@ final updateTypingStatusUseCaseProvider =
     Provider<UpdateTypingStatusUseCase>(
   (ref) => UpdateTypingStatusUseCase(
     repository: ref.watch(chatRepositoryProvider),
+  ),
+    );
+
+  /// Update Message Status
+final updateMessageStatusUseCaseProvider =
+    Provider<UpdateMessageStatusUseCase>(
+  (ref) => UpdateMessageStatusUseCase(
+    ref.watch(chatRepositoryProvider),
+  ),
+);
+
+/// Mark Message As Delivered
+final markMessageAsDeliveredUseCaseProvider =
+    Provider<MarkMessageAsDeliveredUseCase>(
+  (ref) => MarkMessageAsDeliveredUseCase(
+    ref.watch(chatRepositoryProvider),
+  ),
+);
+
+/// Mark Message As Read
+final markMessageAsReadUseCaseProvider =
+    Provider<MarkMessageAsReadUseCase>(
+  (ref) => MarkMessageAsReadUseCase(
+    ref.watch(chatRepositoryProvider),
   ),
 );
