@@ -1,5 +1,6 @@
 import '../../domain/repositories/media_repository.dart';
 import '../datasources/media_remote_datasource.dart';
+import '../../domain/entities/media_upload_result.dart';
 
 class MediaRepositoryImpl implements MediaRepository {
   final MediaRemoteDataSource remoteDataSource;
@@ -20,17 +21,17 @@ class MediaRepositoryImpl implements MediaRepository {
   }
 
   @override
-  Future<String> uploadVideo({
-    required String conversationId,
-    required String senderId,
-    required String filePath,
-  }) {
-    return remoteDataSource.uploadVideo(
-      conversationId: conversationId,
-      senderId: senderId,
-      filePath: filePath,
-    );
-  }
+Future<MediaUploadResult> uploadVideo({
+  required String conversationId,
+  required String senderId,
+  required String filePath,
+}) {
+  return remoteDataSource.uploadVideo(
+    conversationId: conversationId,
+    senderId: senderId,
+    filePath: filePath,
+  );
+}
 
   @override
   Future<String> uploadFile({

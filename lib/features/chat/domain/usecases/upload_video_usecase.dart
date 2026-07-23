@@ -1,3 +1,4 @@
+import '../entities/media_upload_result.dart';
 import '../repositories/media_repository.dart';
 
 class UploadVideoUseCase {
@@ -5,7 +6,7 @@ class UploadVideoUseCase {
 
   UploadVideoUseCase(this.repository);
 
-  Future<String> call({
+  Future<MediaUploadResult> call({
     required String conversationId,
     required String senderId,
     required String filePath,

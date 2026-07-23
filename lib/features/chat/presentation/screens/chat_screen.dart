@@ -9,6 +9,7 @@ import '../widgets/chat_app_bar.dart';
 import '../widgets/message_input.dart';
 import '../widgets/message_list.dart';
 import '../widgets/typing_indicator.dart';
+import '../../domain/entities/media_upload_result.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -86,15 +87,15 @@ void dispose() {
         );
   }
 
-  Future<void> _sendVideoMessage(String videoUrl) async {
+  Future<void> _sendVideoMessage(MediaUploadResult result) async {
   final message = Message(
     id: '',
     conversationId: widget.conversationId,
     senderId: widget.currentUserId,
     messageType: 'video',
     message: '',
-    mediaUrl: videoUrl,
-    thumbnailUrl: null,
+    mediaUrl: result.mediaUrl,
+    thumbnailUrl: result.thumbnailUrl,
     fileName: null,
     fileSize: null,
     mimeType: 'video/mp4',

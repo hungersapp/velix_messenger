@@ -63,6 +63,7 @@ class MessageList extends ConsumerWidget {
   message: message.message,
   messageType: message.messageType,
   mediaUrl: message.mediaUrl,
+  thumbnailUrl: message.thumbnailUrl,
   sentAt: message.sentAt,
   isMe: message.senderId == currentUserId,
   status: message.status,

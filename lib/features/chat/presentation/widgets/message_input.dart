@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'dart:io';
+//import 'package:uuid/uuid.dart';
 
 import '../../services/media_picker_service.dart';
 import '../providers/media_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import '../../domain/entities/media_upload_result.dart';
+//import '../../../../core/services/native_thumbnail_service.dart';
+//import '../providers/pending_media_provider.dart';
 
 class MessageInput extends ConsumerStatefulWidget {
   final String conversationId;
@@ -18,7 +21,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final VoidCallback? onSend;
   final VoidCallback? onVoice;
   final Future<void> Function(String imageUrl)? onImageSelected;
-  final Future<void> Function(String videoUrl)? onVideoSelected;
+  final Future<void> Function(MediaUploadResult result)? onVideoSelected;
 
   const MessageInput({
     super.key,
@@ -45,6 +48,7 @@ class _MessageInputState
 
       final MediaPickerService _picker = MediaPickerService();
 
+      
         Future<void> _pickImage() async {
   final File? image =
     await _picker.pickImageFromGallery();
@@ -81,20 +85,22 @@ Future<void> _pickVideo() async {
 
   debugPrint("1. Video selected");
 
-  final videoUrl = await ref
-      .read(mediaControllerProvider.notifier)
-      .uploadVideo(
-        conversationId: widget.conversationId,
-        senderId: widget.senderId,
-        filePath: video.path,
-      );
+  final result = await ref
+    .read(mediaControllerProvider.notifier)
+    .uploadVideo(
+      conversationId: widget.conversationId,
+      senderId: widget.senderId,
+      filePath: video.path,
+    );
 
-  debugPrint("2. Video uploaded: $videoUrl");
+debugPrint("Video URL: ${result.mediaUrl}");
+debugPrint("Thumbnail: ${result.thumbnailUrl}");
 
-  if (widget.onVideoSelected != null) {
-    await widget.onVideoSelected!(videoUrl);
-    debugPrint("3. Video message created");
-  }
+if (widget.onVideoSelected != null) {
+  await widget.onVideoSelected!(result);
+}
+
+debugPrint("3. Video message created");
 }
 
 void _showAttachmentSheet() {

@@ -8,6 +8,7 @@ import '../../domain/repositories/media_repository.dart';
 import '../../domain/usecases/upload_file_usecase.dart';
 import '../../domain/usecases/upload_image_usecase.dart';
 import '../../domain/usecases/upload_video_usecase.dart';
+import '../../domain/entities/media_upload_result.dart';
 
 /// Firebase Storage
 final firebaseStorageProvider =
@@ -80,25 +81,25 @@ class MediaController extends StateNotifier<bool> {
     }
   }
 
-  Future<String> uploadVideo({
-    required String conversationId,
-    required String senderId,
-    required String filePath,
-  }) async {
-    state = true;
+  Future<MediaUploadResult> uploadVideo({
+  required String conversationId,
+  required String senderId,
+  required String filePath,
+}) async {
+  state = true;
 
-    try {
-      return await ref
-          .read(uploadVideoUseCaseProvider)
-          .call(
-            conversationId: conversationId,
-            senderId: senderId,
-            filePath: filePath,
-          );
-    } finally {
-      state = false;
-    }
+  try {
+    return await ref
+        .read(uploadVideoUseCaseProvider)
+        .call(
+          conversationId: conversationId,
+          senderId: senderId,
+          filePath: filePath,
+        );
+  } finally {
+    state = false;
   }
+}
 
   Future<String> uploadFile({
     required String conversationId,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../screens/image_viewer_screen.dart';
-import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../screens/video_player_screen.dart';
 
 class MessageBubble extends StatelessWidget {
   final String message;
@@ -11,6 +11,7 @@ class MessageBubble extends StatelessWidget {
   final DateTime sentAt;
   final bool isMe;
   final String status;
+  final String? thumbnailUrl;
 
   const MessageBubble({
     super.key,
@@ -20,6 +21,7 @@ class MessageBubble extends StatelessWidget {
     required this.sentAt,
     required this.isMe,
     required this.status,
+    this.thumbnailUrl,
   });
 
   String _formatTime(DateTime dateTime) {
@@ -150,9 +152,10 @@ class MessageBubble extends StatelessWidget {
   else if (messageType == 'video' &&
       mediaUrl != null &&
       mediaUrl!.isNotEmpty)
-    VideoMessagePreview(
-      videoUrl: mediaUrl!,
-    )
+   VideoMessagePreview(
+  videoUrl: mediaUrl!,
+  thumbnailUrl: thumbnailUrl,
+)
   else
     Text(
       message,
@@ -195,96 +198,68 @@ class MessageBubble extends StatelessWidget {
     );
   }
 }
-class VideoMessagePreview extends StatefulWidget {
+class VideoMessagePreview extends StatelessWidget {
   final String videoUrl;
+  final String? thumbnailUrl;
 
   const VideoMessagePreview({
     super.key,
     required this.videoUrl,
+    this.thumbnailUrl,
   });
 
   @override
-  State<VideoMessagePreview> createState() =>
-      _VideoMessagePreviewState();
-}
-
-class _VideoMessagePreviewState
-    extends State<VideoMessagePreview> {
-  late final VideoPlayerController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller =
-        VideoPlayerController.networkUrl(
-      Uri.parse(widget.videoUrl),
-    )..initialize().then((_) {
-        if (mounted) {
-          setState(() {});
-        }
-      });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (!_controller.value.isInitialized) {
-      return const SizedBox(
-        width: 220,
-        height: 220,
-        child: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
     return GestureDetector(
-  onTap: () {
-    if (_controller.value.isPlaying) {
-      _controller.pause();
-    } else {
-      _controller.play();
-    }
-
-    setState(() {});
-  },
-  child: Stack(
-    alignment: Alignment.center,
-    children: [
-      ClipRRect(
-  borderRadius: BorderRadius.circular(12),
-  child: SizedBox(
-    width: 220,
-    height: 300,
-    child: FittedBox(
-      fit: BoxFit.cover,
-      child: SizedBox(
-        width: _controller.value.size.width,
-        height: _controller.value.size.height,
-        child: VideoPlayer(_controller),
-      ),
-    ),
-  ),
-),
-
-      if (!_controller.value.isPlaying)
-        const CircleAvatar(
-          radius: 28,
-          backgroundColor: Colors.black54,
-          child: Icon(
-            Icons.play_arrow,
-            color: Colors.white,
-            size: 34,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VideoPlayerScreen(
+              videoUrl: videoUrl,
+            ),
           ),
-        ),
-    ],
-  ),
-);
-}
+        );
+      },
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(
+              imageUrl: thumbnailUrl ?? '',
+              width: 220,
+              height: 220,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => const SizedBox(
+                width: 220,
+                height: 220,
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              errorWidget: (_, _, _) => Container(
+                width: 220,
+                height: 220,
+                color: Colors.black12,
+                child: const Icon(
+                  Icons.videocam,
+                  size: 50,
+                ),
+              ),
+            ),
+          ),
+          const CircleAvatar(
+            radius: 28,
+            backgroundColor: Colors.black54,
+            child: Icon(
+              Icons.play_arrow,
+              color: Colors.white,
+              size: 34,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
