@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../screens/image_viewer_screen.dart';
+
 class MessageBubble extends StatelessWidget {
   final String message;
   final String messageType;
@@ -102,42 +104,64 @@ class MessageBubble extends StatelessWidget {
                   if (messageType == 'image' &&
                       mediaUrl != null &&
                       mediaUrl!.isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        mediaUrl!,
-                        width: 220,
-                        fit: BoxFit.cover,
-                        loadingBuilder:
-                            (context, child, progress) {
-                          if (progress == null) {
-                            return child;
-                          }
+                   GestureDetector(
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ImageViewerScreen(
+          imageUrl: mediaUrl!,
+          heroTag: mediaUrl!,
+        ),
+      ),
+    );
+  },
+  child: Hero(
+    tag: mediaUrl!,
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        mediaUrl!,
+        width: 220,
+        fit: BoxFit.cover,
+        loadingBuilder: (
+          context,
+          child,
+          progress,
+        ) {
+          if (progress == null) {
+            return child;
+          }
 
-                          return const SizedBox(
-                            width: 220,
-                            height: 220,
-                            child: Center(
-                              child:
-                                  CircularProgressIndicator(),
-                            ),
-                          );
-                        },
-                        errorBuilder:
-                            (context, error, stackTrace) {
-                          return const SizedBox(
-                            width: 220,
-                            height: 220,
-                            child: Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 50,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    )
+          return const SizedBox(
+            width: 220,
+            height: 220,
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        },
+        errorBuilder: (
+          context,
+          error,
+          stackTrace,
+        ) {
+          return const SizedBox(
+            width: 220,
+            height: 220,
+            child: Center(
+              child: Icon(
+                Icons.broken_image,
+                size: 50,
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  ),
+)
+                       
 
                   /// TEXT MESSAGE
                   else

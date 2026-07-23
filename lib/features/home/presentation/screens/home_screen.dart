@@ -7,8 +7,9 @@ import '../widgets/home_app_bar.dart';
 //import '../widgets/new_chat_fab.dart';
 import '../widgets/recent_chat_list.dart';
 import '../widgets/time_capsule_section.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../app/app_routes.dart';
+//import 'package:go_router/go_router.dart';
+//import '../../../../app/app_routes.dart';
+import 'package:velix_messenger/features/contacts/presentation/screens/contacts_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -76,9 +77,14 @@ class _HomeContent extends StatelessWidget {
         ),
       ),
 
-      floatingActionButton: FloatingActionButton(
+     floatingActionButton: FloatingActionButton(
   onPressed: () {
-    context.push(AppRoutes.contacts);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ContactsScreen(),
+      ),
+    );
   },
   child: const Icon(Icons.add),
 ),

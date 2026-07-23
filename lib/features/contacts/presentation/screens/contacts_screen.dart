@@ -36,7 +36,7 @@ class _ContactsScreenState
     super.initState();
 
     Future.microtask(() {
-      ref.read(contactsProvider.notifier).loadContacts();
+     ref.read(contactsProvider.notifier).loadContacts();
     });
   }
 

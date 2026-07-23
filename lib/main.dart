@@ -12,6 +12,12 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  FlutterError.onError = (FlutterErrorDetails details) {
+  FlutterError.presentError(details);
+  debugPrint(details.exceptionAsString());
+  debugPrint(details.stack.toString());
+};
+
   runApp(
     const ProviderScope(
       child: VelixApp(),

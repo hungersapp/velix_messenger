@@ -42,20 +42,10 @@ class _ChatScreenState
   }
 
   @override
-  void dispose() {
-    ref
-        .read(typingControllerProvider.notifier)
-        .updateTypingStatus(
-          conversationId: widget.conversationId,
-          userId: widget.currentUserId,
-          isTyping: false,
-        );
-
-    _controller.dispose();
-
-    super.dispose();
-  }
-
+void dispose() {
+  _controller.dispose();
+  super.dispose();
+}
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
 

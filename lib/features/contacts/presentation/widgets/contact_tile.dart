@@ -42,11 +42,9 @@ class ContactTile extends StatelessWidget {
                         hasPhoto ? NetworkImage(photoUrl!) : null,
                     child: hasPhoto
                         ? null
-                        : Text(
-                            name.isNotEmpty
-                                ? name[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
+                        : const Text(
+                           '?',
+                            style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                             ),
