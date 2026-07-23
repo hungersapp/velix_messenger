@@ -85,6 +85,34 @@ void dispose() {
           isTyping: false,
         );
   }
+
+  Future<void> _sendVideoMessage(String videoUrl) async {
+  final message = Message(
+    id: '',
+    conversationId: widget.conversationId,
+    senderId: widget.currentUserId,
+    messageType: 'video',
+    message: '',
+    mediaUrl: videoUrl,
+    thumbnailUrl: null,
+    fileName: null,
+    fileSize: null,
+    mimeType: 'video/mp4',
+    status: 'sent',
+    sentAt: DateTime.now(),
+    deliveredAt: null,
+    readAt: null,
+    replyToMessageId: null,
+    isEdited: false,
+    isDeleted: false,
+    deletedFor: const [],
+  );
+
+  await ref
+      .read(messageControllerProvider.notifier)
+      .sendMessage(message);
+}
+
 Future<void> _sendImageMessage(String imageUrl) async {
   final message = Message(
     id: '',
@@ -205,6 +233,7 @@ Future<void> _sendImageMessage(String imageUrl) async {
 
             onSend: _sendMessage,
             onImageSelected: _sendImageMessage,
+            onVideoSelected: _sendVideoMessage,
 
             onEmojiPressed: () {
               // TODO

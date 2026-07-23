@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../screens/image_viewer_screen.dart';
+import 'package:video_player/video_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MessageBubble extends StatelessWidget {
   final String message;
@@ -98,107 +100,93 @@ class MessageBubble extends StatelessWidget {
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
-                children: [
-
-                  /// IMAGE MESSAGE
-                  if (messageType == 'image' &&
-                      mediaUrl != null &&
-                      mediaUrl!.isNotEmpty)
-                   GestureDetector(
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ImageViewerScreen(
-          imageUrl: mediaUrl!,
-          heroTag: mediaUrl!,
-        ),
-      ),
-    );
-  },
-  child: Hero(
-    tag: mediaUrl!,
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.network(
-        mediaUrl!,
-        width: 220,
-        fit: BoxFit.cover,
-        loadingBuilder: (
+               children: [
+  /// IMAGE MESSAGE
+  if (messageType == 'image' &&
+      mediaUrl != null &&
+      mediaUrl!.isNotEmpty)
+    GestureDetector(
+      onTap: () {
+        Navigator.push(
           context,
-          child,
-          progress,
-        ) {
-          if (progress == null) {
-            return child;
-          }
-
-          return const SizedBox(
-            width: 220,
-            height: 220,
-            child: Center(
-              child: CircularProgressIndicator(),
+          MaterialPageRoute(
+            builder: (_) => ImageViewerScreen(
+              imageUrl: mediaUrl!,
+              heroTag: mediaUrl!,
             ),
-          );
-        },
-        errorBuilder: (
-          context,
-          error,
-          stackTrace,
-        ) {
-          return const SizedBox(
+          ),
+        );
+      },
+      child: Hero(
+        tag: mediaUrl!,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: CachedNetworkImage(
+            imageUrl: mediaUrl!,
             width: 220,
             height: 220,
-            child: Center(
-              child: Icon(
-                Icons.broken_image,
-                size: 50,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => const SizedBox(
+              width: 220,
+              height: 220,
+              child: Center(
+                child: CircularProgressIndicator(),
               ),
             ),
-          );
-        },
+            errorWidget: (context, url, error) => const SizedBox(
+              width: 220,
+              height: 220,
+              child: Center(
+                child: Icon(
+                  Icons.broken_image,
+                  size: 50,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    )
+  else if (messageType == 'video' &&
+      mediaUrl != null &&
+      mediaUrl!.isNotEmpty)
+    VideoMessagePreview(
+      videoUrl: mediaUrl!,
+    )
+  else
+    Text(
+      message,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        color: isMe
+            ? theme.colorScheme.onPrimary
+            : theme.colorScheme.onSurface,
       ),
     ),
+
+  const SizedBox(height: 6),
+
+  Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        _formatTime(sentAt),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: isMe
+              ? theme.colorScheme.onPrimary.withValues(alpha: 0.75)
+              : Colors.grey,
+        ),
+      ),
+      if (isMe) ...[
+        const SizedBox(width: 4),
+        Icon(
+          _statusIcon(),
+          size: 16,
+          color: _statusColor(context),
+        ),
+      ],
+    ],
   ),
-)
-                       
-
-                  /// TEXT MESSAGE
-                  else
-                    Text(
-                      message,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: isMe
-                            ? theme.colorScheme.onPrimary
-                            : theme.colorScheme.onSurface,
-                      ),
-                    ),
-
-                  const SizedBox(height: 6),
-
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatTime(sentAt),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: isMe
-                              ? theme.colorScheme.onPrimary
-                                  .withValues(alpha: 0.75)
-                              : Colors.grey,
-                        ),
-                      ),
-                      if (isMe) ...[
-                        const SizedBox(width: 4),
-                        Icon(
-                          _statusIcon(),
-                          size: 16,
-                          color: _statusColor(context),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
+],
               ),
             ),
           ),
@@ -206,4 +194,97 @@ class MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+class VideoMessagePreview extends StatefulWidget {
+  final String videoUrl;
+
+  const VideoMessagePreview({
+    super.key,
+    required this.videoUrl,
+  });
+
+  @override
+  State<VideoMessagePreview> createState() =>
+      _VideoMessagePreviewState();
+}
+
+class _VideoMessagePreviewState
+    extends State<VideoMessagePreview> {
+  late final VideoPlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller =
+        VideoPlayerController.networkUrl(
+      Uri.parse(widget.videoUrl),
+    )..initialize().then((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_controller.value.isInitialized) {
+      return const SizedBox(
+        width: 220,
+        height: 220,
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return GestureDetector(
+  onTap: () {
+    if (_controller.value.isPlaying) {
+      _controller.pause();
+    } else {
+      _controller.play();
+    }
+
+    setState(() {});
+  },
+  child: Stack(
+    alignment: Alignment.center,
+    children: [
+      ClipRRect(
+  borderRadius: BorderRadius.circular(12),
+  child: SizedBox(
+    width: 220,
+    height: 300,
+    child: FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: _controller.value.size.width,
+        height: _controller.value.size.height,
+        child: VideoPlayer(_controller),
+      ),
+    ),
+  ),
+),
+
+      if (!_controller.value.isPlaying)
+        const CircleAvatar(
+          radius: 28,
+          backgroundColor: Colors.black54,
+          child: Icon(
+            Icons.play_arrow,
+            color: Colors.white,
+            size: 34,
+          ),
+        ),
+    ],
+  ),
+);
+}
 }

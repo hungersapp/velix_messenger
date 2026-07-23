@@ -6,6 +6,7 @@ import '../../services/media_picker_service.dart';
 import '../providers/media_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+
 class MessageInput extends ConsumerStatefulWidget {
   final String conversationId;
   final String senderId;
@@ -17,6 +18,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final VoidCallback? onSend;
   final VoidCallback? onVoice;
   final Future<void> Function(String imageUrl)? onImageSelected;
+  final Future<void> Function(String videoUrl)? onVideoSelected;
 
   const MessageInput({
     super.key,
@@ -29,6 +31,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.onSend,
     this.onVoice,
     this.onImageSelected,
+    this.onVideoSelected,
   });
 
   @override
@@ -39,18 +42,18 @@ class MessageInput extends ConsumerStatefulWidget {
 
 class _MessageInputState
     extends ConsumerState<MessageInput> {
-      final MediaPickerService _picker =
-    MediaPickerService();
-    Future<void> _pickImage() async {
+
+      final MediaPickerService _picker = MediaPickerService();
+
+        Future<void> _pickImage() async {
   final File? image =
-      await _picker.pickImageFromGallery();
+    await _picker.pickImageFromGallery();
 
   if (image == null) return;
 
 debugPrint("1. Gallery selected");
   final File uploadFile =
-      await _picker.compressImage(image) ??
-      image;
+    await _picker.compressImage(image) ?? image;
 debugPrint("2. Image compressed");
 
   final imageUrl =
@@ -69,6 +72,31 @@ debugPrint("3. Upload completed: $imageUrl");
   debugPrint("4. Message created");
 }
 }
+
+Future<void> _pickVideo() async {
+  final File? video =
+    await _picker.pickVideo();
+
+  if (video == null) return;
+
+  debugPrint("1. Video selected");
+
+  final videoUrl = await ref
+      .read(mediaControllerProvider.notifier)
+      .uploadVideo(
+        conversationId: widget.conversationId,
+        senderId: widget.senderId,
+        filePath: video.path,
+      );
+
+  debugPrint("2. Video uploaded: $videoUrl");
+
+  if (widget.onVideoSelected != null) {
+    await widget.onVideoSelected!(videoUrl);
+    debugPrint("3. Video message created");
+  }
+}
+
 void _showAttachmentSheet() {
   showModalBottomSheet(
     context: context,
@@ -99,10 +127,11 @@ void _showAttachmentSheet() {
             ListTile(
               leading: const Icon(Icons.videocam),
               title: const Text('Video'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
+              onTap: () async {
+              Navigator.pop(context);
+              await _pickVideo();
+               },
+               ),
             ListTile(
               leading: const Icon(Icons.insert_drive_file),
               title: const Text('Document'),
