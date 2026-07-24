@@ -6,21 +6,25 @@ class HomeState {
     this.isLoading = false,
     this.hasChats = true,
     this.searchQuery = '',
+    this.isSearchActive = false,
   });
 
   final bool isLoading;
   final bool hasChats;
   final String searchQuery;
+  final bool isSearchActive;
 
   HomeState copyWith({
     bool? isLoading,
     bool? hasChats,
     String? searchQuery,
+    bool? isSearchActive,
   }) {
     return HomeState(
       isLoading: isLoading ?? this.isLoading,
       hasChats: hasChats ?? this.hasChats,
       searchQuery: searchQuery ?? this.searchQuery,
+      isSearchActive: isSearchActive ?? this.isSearchActive,
     );
   }
 }
@@ -43,6 +47,25 @@ class HomeNotifier extends StateNotifier<HomeState> {
 
   void clearSearch() {
     state = state.copyWith(searchQuery: '');
+  }
+
+  void openSearch() {
+    state = state.copyWith(isSearchActive: true);
+  }
+
+  void closeSearch() {
+    state = state.copyWith(
+      isSearchActive: false,
+      searchQuery: '',
+    );
+  }
+
+  void toggleSearch() {
+    if (state.isSearchActive) {
+      closeSearch();
+    } else {
+      openSearch();
+    }
   }
 }
 

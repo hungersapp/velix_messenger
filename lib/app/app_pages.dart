@@ -5,6 +5,8 @@ import '../features/chat/presentation/screens/chat_screen.dart';
 import '../features/contacts/presentation/screens/contacts_screen.dart';
 import '../features/home/presentation/screens/home_screen.dart';
 import '../features/splash/presentation/screens/splash_screen.dart';
+import '../features/time_capsule/domain/entities/story_owner_bucket.dart';
+import '../features/time_capsule/presentation/screens/story_viewer_screen.dart';
 import 'app_routes.dart';
 
 class AppPages {
@@ -50,6 +52,21 @@ class AppPages {
                 data['userName'] as String,
             profileImageUrl:
                 data['profileImageUrl'] as String?,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: AppRoutes.timeCapsuleViewer,
+        builder: (context, state) {
+          final data = state.extra as Map<String, dynamic>;
+          final rawBuckets = data['buckets'] as List<dynamic>;
+
+          return StoryViewerScreen(
+            buckets: rawBuckets
+                .cast<StoryOwnerBucket>()
+                .toList(),
+            initialOwnerId: data['initialOwnerId'] as String,
           );
         },
       ),

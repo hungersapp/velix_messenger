@@ -9,11 +9,13 @@ class HomeAppBar extends StatelessWidget
     required this.user,
     this.onSearch,
     this.onProfile,
+    this.isSearchActive = false,
   });
 
   final UserEntity? user;
   final VoidCallback? onSearch;
   final VoidCallback? onProfile;
+  final bool isSearchActive;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +47,9 @@ class HomeAppBar extends StatelessWidget
       actions: [
         IconButton(
           onPressed: onSearch,
-          icon: const Icon(Icons.search),
+          icon: Icon(
+            isSearchActive ? Icons.close : Icons.search,
+          ),
         ),
 
         Padding(
