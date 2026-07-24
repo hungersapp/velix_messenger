@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/message.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/message_provider.dart';
+import '../providers/message_receipt_controller.dart';
 import '../providers/typing_provider.dart';
 import '../widgets/chat_app_bar.dart';
 import '../widgets/message_input.dart';
@@ -35,6 +36,8 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState
     extends ConsumerState<ChatScreen> {
   late final TextEditingController _controller;
+  final Set<String> _deliveredInFlight = {};
+  final Set<String> _readInFlight = {};
 
   @override
   void initState() {
@@ -43,10 +46,56 @@ class _ChatScreenState
   }
 
   @override
-void dispose() {
-  _controller.dispose();
-  super.dispose();
-}
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _processMessageReceipts(
+    List<Message> messages,
+  ) async {
+    final receiptController =
+        ref.read(messageReceiptControllerProvider);
+    final conversationId = widget.conversationId;
+    final currentUserId = widget.currentUserId;
+
+    for (final message in messages) {
+      if (message.senderId == currentUserId) continue;
+      if (message.id.isEmpty) continue;
+
+      final messageId = message.id;
+
+      if (message.status == 'sent' &&
+          !_deliveredInFlight.contains(messageId)) {
+        _deliveredInFlight.add(messageId);
+        try {
+          await receiptController.markDelivered(
+            conversationId: conversationId,
+            messageId: messageId,
+          );
+        } catch (_) {
+          // Allow retry on a future stream emission.
+        } finally {
+          _deliveredInFlight.remove(messageId);
+        }
+      }
+
+      if (message.status != 'read' &&
+          !_readInFlight.contains(messageId)) {
+        _readInFlight.add(messageId);
+        try {
+          await receiptController.markRead(
+            conversationId: conversationId,
+            messageId: messageId,
+          );
+        } catch (_) {
+          // Allow retry on a future stream emission.
+        } finally {
+          _readInFlight.remove(messageId);
+        }
+      }
+    }
+  }
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
 
@@ -142,11 +191,18 @@ Future<void> _sendImageMessage(String imageUrl) async {
 }
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<Message>>>(
+      messageProvider(widget.conversationId),
+      (previous, next) {
+        next.whenData(_processMessageReceipts);
+      },
+    );
+
     final conversationAsync = ref.watch(
       conversationByIdProvider(
         widget.conversationId,
       ),
-          );
+    );
 
     return Scaffold(
       appBar: conversationAsync.when(
