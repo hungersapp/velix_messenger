@@ -16,6 +16,39 @@ class TimeCapsuleRail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bucketsAsync = ref.watch(storyBucketsProvider);
     final currentUser = ref.watch(currentUserProvider).value;
+    final uploadState = ref.watch(storyUploadControllerProvider);
+
+    ref.listen<StoryUploadState>(storyUploadControllerProvider, (
+      previous,
+      next,
+    ) {
+      if (previous?.phase == next.phase) {
+        return;
+      }
+
+      if (next.phase == StoryUploadPhase.success) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) {
+            return;
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Your TC shared')),
+          );
+          ref.read(storyUploadControllerProvider.notifier).acknowledge();
+        });
+        return;
+      }
+
+      if (next.phase == StoryUploadPhase.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.message ?? 'Upload failed'),
+          ),
+        );
+        ref.read(storyUploadControllerProvider.notifier).acknowledge();
+      }
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,8 +100,12 @@ class TimeCapsuleRail extends ConsumerWidget {
                       child: _YourTimeCapsuleBubble(
                         bucket: yourBucket,
                         viewerId: currentUser.uid,
-                        onAdd: () => _openCreateSheet(context, ref),
-                        onView: yourBucket.stories.isEmpty
+                        showUploadRing: uploadState.showUploadRing,
+                        onAdd: uploadState.isInProgress
+                            ? null
+                            : () => _openCreateSheet(context, ref),
+                        onView: yourBucket.stories.isEmpty ||
+                                uploadState.isInProgress
                             ? null
                             : () => _openViewer(
                                   context,
@@ -130,6 +167,10 @@ class TimeCapsuleRail extends ConsumerWidget {
   }
 
   Future<void> _openCreateSheet(BuildContext context, WidgetRef ref) async {
+    if (ref.read(storyUploadControllerProvider).isInProgress) {
+      return;
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) {
@@ -207,6 +248,10 @@ class TimeCapsuleRail extends ConsumerWidget {
     final user = ref.read(currentUserProvider).value;
     if (user == null) return;
 
+    if (ref.read(storyUploadControllerProvider).isInProgress) {
+      return;
+    }
+
     final mediaService = ref.read(timeCapsuleMediaServiceProvider);
 
     try {
@@ -219,36 +264,11 @@ class TimeCapsuleRail extends ConsumerWidget {
       final caption = await _askCaption(context);
       if (!context.mounted) return;
 
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
       await ref.read(storyUploadControllerProvider.notifier).upload(
             ownerId: user.uid,
             media: media,
             caption: caption,
           );
-
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-
-      final uploadState = ref.read(storyUploadControllerProvider);
-      if (uploadState.hasError && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              uploadState.error.toString(),
-            ),
-          ),
-        );
-      } else {
-        ref.invalidate(storyBucketsProvider);
-      }
     } on TimeCapsuleMediaException catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -257,7 +277,6 @@ class TimeCapsuleRail extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).maybePop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Upload failed: $e')),
         );
@@ -303,13 +322,15 @@ class _YourTimeCapsuleBubble extends StatelessWidget {
   const _YourTimeCapsuleBubble({
     required this.bucket,
     required this.viewerId,
-    required this.onAdd,
+    required this.showUploadRing,
+    this.onAdd,
     this.onView,
   });
 
   final StoryOwnerBucket bucket;
   final String viewerId;
-  final VoidCallback onAdd;
+  final bool showUploadRing;
+  final VoidCallback? onAdd;
   final VoidCallback? onView;
 
   @override
@@ -327,54 +348,67 @@ class _YourTimeCapsuleBubble extends StatelessWidget {
       child: Column(
         children: [
           Stack(
+            alignment: Alignment.center,
             children: [
-              GestureDetector(
-                onTap: hasStories ? onView : onAdd,
-                child: Container(
+              if (showUploadRing)
+                const SizedBox(
+                  width: 68,
+                  height: 68,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Color(0xFF2563EB),
+                  ),
+                )
+              else
+                Container(
                   width: 68,
                   height: 68,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: ringColor, width: 2),
                   ),
-                  child: CircleAvatar(
-                    backgroundColor: const Color(0xFFF2F4F7),
-                    backgroundImage: bucket.ownerPhotoUrl != null
-                        ? NetworkImage(bucket.ownerPhotoUrl!)
-                        : null,
-                    child: bucket.ownerPhotoUrl == null
-                        ? const Icon(Icons.person, color: Colors.grey)
-                        : null,
-                  ),
+                ),
+              GestureDetector(
+                onTap: hasStories ? onView : onAdd,
+                child: CircleAvatar(
+                  radius: 30,
+                  backgroundColor: const Color(0xFFF2F4F7),
+                  backgroundImage: bucket.ownerPhotoUrl != null
+                      ? NetworkImage(bucket.ownerPhotoUrl!)
+                      : null,
+                  child: bucket.ownerPhotoUrl == null
+                      ? const Icon(Icons.person, color: Colors.grey)
+                      : null,
                 ),
               ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: GestureDetector(
-                  onTap: onAdd,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2563EB),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.add,
-                      size: 16,
-                      color: Colors.white,
+              if (!showUploadRing && onAdd != null)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    onTap: onAdd,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2563EB),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.add,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Your TC',
+          Text(
+            showUploadRing ? 'Uploading' : 'Your TC',
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12),
+            style: const TextStyle(fontSize: 12),
           ),
         ],
       ),

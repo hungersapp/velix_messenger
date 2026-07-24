@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_dependency_provider.dart';
@@ -152,13 +153,57 @@ final storyBucketsProvider =
   return buckets;
 });
 
+enum StoryUploadPhase {
+  idle,
+  preparing,
+  uploading,
+  success,
+  error,
+}
+
+@immutable
+class StoryUploadState {
+  const StoryUploadState({
+    required this.phase,
+    this.message,
+  });
+
+  const StoryUploadState.idle()
+      : phase = StoryUploadPhase.idle,
+        message = null;
+
+  const StoryUploadState.preparing()
+      : phase = StoryUploadPhase.preparing,
+        message = null;
+
+  const StoryUploadState.uploading()
+      : phase = StoryUploadPhase.uploading,
+        message = null;
+
+  const StoryUploadState.success()
+      : phase = StoryUploadPhase.success,
+        message = null;
+
+  const StoryUploadState.error(this.message)
+      : phase = StoryUploadPhase.error;
+
+  final StoryUploadPhase phase;
+  final String? message;
+
+  bool get isInProgress =>
+      phase == StoryUploadPhase.preparing ||
+      phase == StoryUploadPhase.uploading;
+
+  bool get showUploadRing => isInProgress;
+}
+
 final storyUploadControllerProvider =
-    StateNotifierProvider<StoryUploadController, AsyncValue<void>>(
+    StateNotifierProvider<StoryUploadController, StoryUploadState>(
   (ref) => StoryUploadController(ref),
 );
 
-class StoryUploadController extends StateNotifier<AsyncValue<void>> {
-  StoryUploadController(this._ref) : super(const AsyncValue.data(null));
+class StoryUploadController extends StateNotifier<StoryUploadState> {
+  StoryUploadController(this._ref) : super(const StoryUploadState.idle());
 
   final Ref _ref;
 
@@ -167,8 +212,15 @@ class StoryUploadController extends StateNotifier<AsyncValue<void>> {
     required TimeCapsulePickedMedia media,
     String? caption,
   }) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
+    if (state.isInProgress) {
+      return;
+    }
+
+    state = const StoryUploadState.preparing();
+
+    try {
+      state = const StoryUploadState.uploading();
+
       await _ref.read(createStoryUseCaseProvider)(
         ownerId: ownerId,
         mediaType: media.mediaType,
@@ -177,6 +229,17 @@ class StoryUploadController extends StateNotifier<AsyncValue<void>> {
         caption: caption,
         durationMs: media.durationMs,
       );
-    });
+
+      state = const StoryUploadState.success();
+    } catch (e) {
+      state = StoryUploadState.error(e.toString());
+    }
+  }
+
+  void acknowledge() {
+    if (state.phase == StoryUploadPhase.success ||
+        state.phase == StoryUploadPhase.error) {
+      state = const StoryUploadState.idle();
+    }
   }
 }

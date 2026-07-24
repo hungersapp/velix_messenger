@@ -7,6 +7,7 @@ import '../../../user/presentation/providers/current_user_provider.dart';
 import '../../domain/entities/story_entity.dart';
 import '../../domain/entities/story_owner_bucket.dart';
 import '../providers/time_capsule_provider.dart';
+import '../utils/story_time_formatter.dart';
 
 class StoryViewerScreen extends ConsumerStatefulWidget {
   const StoryViewerScreen({
@@ -326,12 +327,25 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              bucket.ownerName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  bucket.ownerName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  formatStoryRelativeTime(story.createdAt),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           IconButton(
