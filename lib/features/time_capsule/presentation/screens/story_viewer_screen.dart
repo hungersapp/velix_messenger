@@ -438,15 +438,16 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
                               ],
                             ),
                           ),
-                          IconButton(
-                            onPressed: _shareBusy
-                                ? null
-                                : () => _shareStory(story),
-                            icon: const Icon(
-                              Icons.ios_share,
-                              color: Colors.white,
+                          if (_isOwnerOf(story))
+                            IconButton(
+                              onPressed: _shareBusy
+                                  ? null
+                                  : () => _shareStory(story),
+                              icon: const Icon(
+                                Icons.ios_share,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
                           if (_isOwnerOf(story))
                             IconButton(
                               onPressed: _deleteBusy
@@ -565,7 +566,7 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
   }
 
   Future<void> _shareStory(StoryEntity story) async {
-    if (_shareBusy) {
+    if (!_isOwnerOf(story) || _shareBusy) {
       return;
     }
 
