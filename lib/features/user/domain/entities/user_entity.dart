@@ -16,6 +16,7 @@ class UserEntity {
     required this.storyPrivacy,
     required this.createdAt,
     required this.updatedAt,
+    this.velixId = '',
   });
 
   final String uid;
@@ -34,4 +35,7 @@ class UserEntity {
   final String storyPrivacy;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// Permanent Velix User ID, e.g. `@murali_VX82A7`.
+  final String velixId;
 }

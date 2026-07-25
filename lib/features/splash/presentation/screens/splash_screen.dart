@@ -1,103 +1,87 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../../authentication/presentation/screens/login_screen.dart';
-import '../../../authentication/presentation/providers/splash_provider.dart';
-import '../../../auth/presentation/screens/first_user_entry_screen.dart';
-import '../../../home/presentation/screens/home_screen.dart';
+import '../../../../app/app_routes.dart';
+import '../../../../core/debug/nav_debug_log.dart';
 
-class SplashScreen extends ConsumerStatefulWidget {
+/// Branded loading screen only.
+/// Always continues to Login — no session / Google auto-login routing.
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  ConsumerState<SplashScreen> createState() =>
-      _SplashScreenState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState
-    extends ConsumerState<SplashScreen> {
-
+class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-
-    _checkAppState();
+    navLog('Splash', 'initState');
+    _continueToLogin();
   }
 
-  Future<void> _checkAppState() async {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    navLog('Splash', 'didChangeDependencies', {
+      'goRouterLocation': goRouterLocationOf(context),
+      'mounted': mounted,
+    });
+  }
 
-    // Splash Logo 2 Seconds
-    await Future.delayed(
-      const Duration(seconds: 2),
-    );
+  @override
+  void dispose() {
+    navLog('Splash', 'dispose');
+    super.dispose();
+  }
 
-    if (!mounted) return;
+  Future<void> _continueToLogin() async {
+    await Future.delayed(const Duration(seconds: 2));
 
-    final destination = await ref
-        .read(splashProvider)
-        .checkAppState();
-
-    if (!mounted) return;
-
-    switch (destination) {
-
-      case SplashDestination.login:
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const LoginScreen(),
-          ),
-        );
-        break;
-
-      case SplashDestination.home:
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const HomeScreen(),
-          ),
-        );
-        break;
-
-      case SplashDestination.firstUser:
-
-        final firebaseUser =
-            FirebaseAuth.instance.currentUser!;
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => FirstUserEntryScreen(
-              uid: firebaseUser.uid,
-              email: firebaseUser.email ?? '',
-              name: firebaseUser.displayName ?? '',
-              photoUrl: firebaseUser.photoURL ?? '',
-            ),
-          ),
-        );
-        break;
+    if (!mounted) {
+      navLog('Splash', 'context.mounted', {
+        'mounted': false,
+        'phase': 'after_delay',
+      });
+      return;
     }
+
+    navLog('Splash', 'navigation start', {
+      'destination': 'login',
+      'goRouterLocation': goRouterLocationOf(context),
+      'operation': 'context.go',
+      'mounted': mounted,
+    });
+
+    context.go(AppRoutes.login);
+
+    navLog('Splash', 'navigation end', {
+      'destination': 'login',
+      'goRouterLocation': mounted
+          ? goRouterLocationOf(context)
+          : 'unmounted',
+      'mounted': mounted,
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    navLog('Splash', 'build', {
+      'goRouterLocation': goRouterLocationOf(context),
+      'mounted': mounted,
+    });
+
     return Scaffold(
       body: Center(
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
             Image.asset(
               'assets/images/app_logo.png',
               height: 140,
             ),
-
             const SizedBox(height: 24),
-
             const Text(
               'Velix',
               style: TextStyle(
@@ -105,15 +89,11 @@ class _SplashScreenState
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
               'Fast. Secure. Simple.',
             ),
-
             const SizedBox(height: 40),
-
             const CircularProgressIndicator(),
           ],
         ),

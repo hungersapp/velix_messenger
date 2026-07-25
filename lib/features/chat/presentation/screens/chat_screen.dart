@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/debug/nav_debug_log.dart';
 import '../../domain/entities/message.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/message_provider.dart';
@@ -43,12 +44,48 @@ class _ChatScreenState
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    navLog('Chat', 'initState', {
+      'conversationId': widget.conversationId,
+      'currentUser': widget.currentUserId,
+      'otherUserId': widget.otherUserId,
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    navLog('Chat', 'didChangeDependencies', {
+      'conversationId': widget.conversationId,
+      'currentUser': widget.currentUserId,
+      'goRouterLocation': goRouterLocationOf(context),
+      'mounted': mounted,
+    });
   }
 
   @override
   void dispose() {
+    navLog('Chat', 'dispose', {
+      'conversationId': widget.conversationId,
+      'currentUser': widget.currentUserId,
+    });
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onBackPressed() {
+    navLog('Chat', 'navigation start', {
+      'operation': 'Navigator.pop',
+      'conversationId': widget.conversationId,
+      'currentUser': widget.currentUserId,
+      'goRouterLocation': goRouterLocationOf(context),
+      'mounted': mounted,
+    });
+    Navigator.pop(context);
+    navLog('Chat', 'navigation end', {
+      'operation': 'Navigator.pop',
+      'conversationId': widget.conversationId,
+      'mounted': mounted,
+    });
   }
 
   Future<void> _processMessageReceipts(
@@ -191,6 +228,14 @@ Future<void> _sendImageMessage(String imageUrl) async {
 }
   @override
   Widget build(BuildContext context) {
+    navLog('Chat', 'build', {
+      'conversationId': widget.conversationId,
+      'currentUser': widget.currentUserId,
+      'otherUserId': widget.otherUserId,
+      'goRouterLocation': goRouterLocationOf(context),
+      'mounted': mounted,
+    });
+
     ref.listen<AsyncValue<List<Message>>>(
       messageProvider(widget.conversationId),
       (previous, next) {
@@ -218,7 +263,7 @@ Future<void> _sendImageMessage(String imageUrl) async {
                 widget.profileImageUrl,
             isOnline: false,
             isTyping: isTyping,
-            onBack: () => Navigator.pop(context),
+            onBack: _onBackPressed,
           );
         },
         loading: () => ChatAppBar(
@@ -227,7 +272,7 @@ Future<void> _sendImageMessage(String imageUrl) async {
               widget.profileImageUrl,
           isOnline: false,
           isTyping: false,
-          onBack: () => Navigator.pop(context),
+          onBack: _onBackPressed,
         ),
         error: (_, _) => ChatAppBar(
           userName: widget.userName,
@@ -235,7 +280,7 @@ Future<void> _sendImageMessage(String imageUrl) async {
               widget.profileImageUrl,
           isOnline: false,
           isTyping: false,
-          onBack: () => Navigator.pop(context),
+          onBack: _onBackPressed,
         ),
       ),
       body: Column(

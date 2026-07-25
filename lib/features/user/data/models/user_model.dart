@@ -20,6 +20,7 @@ class UserModel extends UserEntity {
     required super.storyPrivacy,
     required super.createdAt,
     required super.updatedAt,
+    super.velixId,
   });
 
   factory UserModel.fromFirestore(
@@ -29,12 +30,12 @@ class UserModel extends UserEntity {
 
     return UserModel(
       uid: data['uid'] ?? '',
-      name: data['name'] ?? '',
+      name: data['name'] ?? data['displayName'] ?? '',
       email: data['email'] ?? '',
       mobileNumber: data['mobileNumber'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
       about: data['about'] ?? '',
-      accountStatus: data['accountStatus'] ?? 'active',
+      accountStatus: data['accountStatus'] ?? data['status'] ?? 'active',
       appVersion: data['appVersion'] ?? '1.0.0',
       isOnline: data['isOnline'] ?? false,
       lastActiveDevice: data['lastActiveDevice'] ?? '',
@@ -44,6 +45,7 @@ class UserModel extends UserEntity {
       storyPrivacy: data['storyPrivacy'] ?? 'everyone',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      velixId: data['velixId'] ?? '',
     );
   }
 
@@ -68,6 +70,7 @@ class UserModel extends UserEntity {
           createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'updatedAt':
           updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      if (velixId.isNotEmpty) 'velixId': velixId,
     };
   }
 
@@ -89,6 +92,7 @@ class UserModel extends UserEntity {
       storyPrivacy: entity.storyPrivacy,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      velixId: entity.velixId,
     );
   }
 
@@ -110,6 +114,7 @@ class UserModel extends UserEntity {
       storyPrivacy: storyPrivacy,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      velixId: velixId,
     );
   }
 }

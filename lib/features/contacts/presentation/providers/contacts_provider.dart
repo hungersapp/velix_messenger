@@ -1,41 +1,53 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/datasources/contacts_local_datasource.dart';
-import '../../data/datasources/contacts_remote_datasource.dart';
-import '../../data/repositories/contacts_repository_impl.dart';
-import '../../domain/repositories/contacts_repository.dart';
-import '../../domain/usecases/get_contacts_usecase.dart';
-import '../../domain/usecases/search_contacts_usecase.dart';
+import '../../../chat/presentation/providers/chat_provider.dart';
+import '../../data/datasources/friend_requests_remote_datasource.dart';
+import '../../data/datasources/friends_remote_datasource.dart';
+import '../../data/datasources/user_discovery_remote_datasource.dart';
+import '../../data/repositories/friends_repository_impl.dart';
+import '../../domain/repositories/friends_repository.dart';
+import '../../domain/usecases/accept_friend_request_usecase.dart';
+import '../../domain/usecases/add_friend_usecase.dart';
+import '../../domain/usecases/decline_friend_request_usecase.dart';
+import '../../domain/usecases/get_friends_usecase.dart';
+import '../../domain/usecases/get_incoming_friend_requests_usecase.dart';
+import '../../domain/usecases/search_friends_usecase.dart';
+import '../../domain/usecases/search_velix_users_usecase.dart';
+import '../../domain/usecases/send_friend_request_usecase.dart';
 import '../../domain/usecases/sync_contacts_usecase.dart';
-import 'contacts_state.dart';
+import '../../domain/usecases/watch_incoming_friend_requests_usecase.dart';
+import 'friends_state.dart';
 
 /// ---------------------------------------------------------------------------
 /// Data Sources
 /// ---------------------------------------------------------------------------
 
-final contactsLocalDataSourceProvider =
-    Provider<ContactsLocalDataSource>(
-  (ref) => ContactsLocalDataSourceImpl(),
+final friendsRemoteDataSourceProvider =
+    Provider<FriendsRemoteDataSource>(
+  (ref) => FriendsRemoteDataSourceImpl(),
 );
 
-final contactsRemoteDataSourceProvider =
-    Provider<ContactsRemoteDataSource>(
-  (ref) => ContactsRemoteDataSourceImpl(),
+final friendRequestsRemoteDataSourceProvider =
+    Provider<FriendRequestsRemoteDataSource>(
+  (ref) => FriendRequestsRemoteDataSourceImpl(),
+);
+
+final userDiscoveryRemoteDataSourceProvider =
+    Provider<UserDiscoveryRemoteDataSource>(
+  (ref) => UserDiscoveryRemoteDataSourceImpl(),
 );
 
 /// ---------------------------------------------------------------------------
 /// Repository
 /// ---------------------------------------------------------------------------
 
-final contactsRepositoryProvider =
-    Provider<ContactsRepository>(
-  (ref) => ContactsRepositoryImpl(
-    localDataSource: ref.watch(
-      contactsLocalDataSourceProvider,
-    ),
-    remoteDataSource: ref.watch(
-      contactsRemoteDataSourceProvider,
-    ),
+final friendsRepositoryProvider = Provider<FriendsRepository>(
+  (ref) => FriendsRepositoryImpl(
+    remoteDataSource: ref.watch(friendsRemoteDataSourceProvider),
+    requestsRemoteDataSource:
+        ref.watch(friendRequestsRemoteDataSourceProvider),
+    discoveryRemoteDataSource:
+        ref.watch(userDiscoveryRemoteDataSourceProvider),
   ),
 );
 
@@ -43,69 +55,84 @@ final contactsRepositoryProvider =
 /// UseCases
 /// ---------------------------------------------------------------------------
 
-final getContactsUseCaseProvider =
-    Provider<GetContactsUseCase>(
-  (ref) => GetContactsUseCase(
-    ref.watch(contactsRepositoryProvider),
+final getFriendsUseCaseProvider = Provider<GetFriendsUseCase>(
+  (ref) => GetFriendsUseCase(ref.watch(friendsRepositoryProvider)),
+);
+
+final searchFriendsUseCaseProvider = Provider<SearchFriendsUseCase>(
+  (ref) => SearchFriendsUseCase(ref.watch(friendsRepositoryProvider)),
+);
+
+final addFriendUseCaseProvider = Provider<AddFriendUseCase>(
+  (ref) => AddFriendUseCase(ref.watch(friendsRepositoryProvider)),
+);
+
+final searchVelixUsersUseCaseProvider = Provider<SearchVelixUsersUseCase>(
+  (ref) => SearchVelixUsersUseCase(ref.watch(friendsRepositoryProvider)),
+);
+
+final sendFriendRequestUseCaseProvider = Provider<SendFriendRequestUseCase>(
+  (ref) => SendFriendRequestUseCase(ref.watch(friendsRepositoryProvider)),
+);
+
+final getIncomingFriendRequestsUseCaseProvider =
+    Provider<GetIncomingFriendRequestsUseCase>(
+  (ref) => GetIncomingFriendRequestsUseCase(
+    ref.watch(friendsRepositoryProvider),
   ),
 );
 
-final syncContactsUseCaseProvider =
-    Provider<SyncContactsUseCase>(
-  (ref) => SyncContactsUseCase(
-    ref.watch(contactsRepositoryProvider),
+final watchIncomingFriendRequestsUseCaseProvider =
+    Provider<WatchIncomingFriendRequestsUseCase>(
+  (ref) => WatchIncomingFriendRequestsUseCase(
+    ref.watch(friendsRepositoryProvider),
   ),
 );
 
-final searchContactsUseCaseProvider =
-    Provider<SearchContactsUseCase>(
-  (ref) => SearchContactsUseCase(
-    ref.watch(contactsRepositoryProvider),
+final acceptFriendRequestUseCaseProvider =
+    Provider<AcceptFriendRequestUseCase>(
+  (ref) => AcceptFriendRequestUseCase(
+    repository: ref.watch(friendsRepositoryProvider),
+    addFriendUseCase: ref.watch(addFriendUseCaseProvider),
+    openChatUseCase: ref.watch(openChatUseCaseProvider),
   ),
+);
+
+final declineFriendRequestUseCaseProvider =
+    Provider<DeclineFriendRequestUseCase>(
+  (ref) => DeclineFriendRequestUseCase(ref.watch(friendsRepositoryProvider)),
+);
+
+/// Kept for Time Capsule (`timeCapsuleFriendIdsProvider`) without changing it.
+final syncContactsUseCaseProvider = Provider<SyncContactsUseCase>(
+  (ref) => SyncContactsUseCase(ref.watch(friendsRepositoryProvider)),
 );
 
 /// ---------------------------------------------------------------------------
 /// StateNotifier
 /// ---------------------------------------------------------------------------
 
-class ContactsNotifier extends StateNotifier<ContactsState> {
-  final ContactsRepository repository;
-  final GetContactsUseCase getContactsUseCase;
-  final SyncContactsUseCase syncContactsUseCase;
-  final SearchContactsUseCase searchContactsUseCase;
+class FriendsNotifier extends StateNotifier<FriendsState> {
+  FriendsNotifier({
+    required this.getFriendsUseCase,
+    required this.searchFriendsUseCase,
+  }) : super(const FriendsState());
 
-  ContactsNotifier({
-    required this.repository,
-    required this.getContactsUseCase,
-    required this.syncContactsUseCase,
-    required this.searchContactsUseCase,
-  }) : super(const ContactsState());
+  final GetFriendsUseCase getFriendsUseCase;
+  final SearchFriendsUseCase searchFriendsUseCase;
 
-  Future<void> loadContacts() async {
-    state = state.copyWith(
-      isLoading: true,
-      clearError: true,
-    );
+  Future<void> loadFriends() async {
+    state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      final hasPermission =
-          await repository.requestPermission();
-
-      if (!hasPermission) {
-        state = state.copyWith(
-          isLoading: false,
-          hasPermission: false,
-          errorMessage: 'Contacts permission denied.',
-        );
-        return;
-      }
-
-      final contacts = await getContactsUseCase();
+      final friends = state.searchQuery.trim().isEmpty
+          ? await getFriendsUseCase()
+          : await searchFriendsUseCase(state.searchQuery);
 
       state = state.copyWith(
         isLoading: false,
-        hasPermission: true,
-        contacts: contacts,
+        friends: friends,
+        clearError: true,
       );
     } catch (e) {
       state = state.copyWith(
@@ -115,29 +142,9 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
     }
   }
 
-  Future<void> syncContacts() async {
-    state = state.copyWith(
-      isLoading: true,
-      clearError: true,
-    );
+  Future<void> refresh() => loadFriends();
 
-    try {
-      final contacts =
-          await syncContactsUseCase();
-
-      state = state.copyWith(
-        isLoading: false,
-        contacts: contacts,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  Future<void> searchContacts(String query) async {
+  Future<void> search(String query) async {
     state = state.copyWith(
       searchQuery: query,
       isLoading: true,
@@ -145,13 +152,10 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
     );
 
     try {
-      final contacts =
-          await searchContactsUseCase(query);
-
+      final friends = await searchFriendsUseCase(query);
       state = state.copyWith(
         isLoading: false,
-        hasPermission: true,
-        contacts: contacts,
+        friends: friends,
       );
     } catch (e) {
       state = state.copyWith(
@@ -162,23 +166,13 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Provider
-/// ---------------------------------------------------------------------------
-
-final contactsProvider =
-    StateNotifierProvider<
-        ContactsNotifier,
-        ContactsState>(
-  (ref) => ContactsNotifier(
-    repository: ref.watch(
-      contactsRepositoryProvider,
-    ),
-    getContactsUseCase:
-        ref.watch(getContactsUseCaseProvider),
-    syncContactsUseCase:
-        ref.watch(syncContactsUseCaseProvider),
-    searchContactsUseCase:
-        ref.watch(searchContactsUseCaseProvider),
+final friendsProvider =
+    StateNotifierProvider<FriendsNotifier, FriendsState>(
+  (ref) => FriendsNotifier(
+    getFriendsUseCase: ref.watch(getFriendsUseCaseProvider),
+    searchFriendsUseCase: ref.watch(searchFriendsUseCaseProvider),
   ),
 );
+
+/// Alias used by QR Connect refresh — same friends list provider.
+final contactsProvider = friendsProvider;

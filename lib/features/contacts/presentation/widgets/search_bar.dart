@@ -1,36 +1,24 @@
 import 'package:flutter/material.dart';
 
-class ContactsSearchBar extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback? onClear;
-
-  const ContactsSearchBar({
+class FriendsSearchBar extends StatelessWidget {
+  const FriendsSearchBar({
     super.key,
     required this.controller,
     required this.onChanged,
-    this.onClear,
   });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      textInputAction: TextInputAction.search,
       onChanged: onChanged,
+      textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        hintText: 'Search contacts...',
+        hintText: 'Search friends...',
         prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: controller.text.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: () {
-                  controller.clear();
-                  onChanged('');
-                  onClear?.call();
-                },
-              )
-            : null,
         filled: true,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

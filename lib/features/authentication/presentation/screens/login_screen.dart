@@ -1,129 +1,272 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/app_routes.dart';
+import '../../../user/presentation/providers/current_user_provider.dart';
 import '../providers/auth_provider.dart';
-import '../../../splash/presentation/screens/splash_screen.dart';
 
-class LoginScreen extends ConsumerWidget {
+/// Velix authentication login UI.
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _identifierController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _identifierController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  /// Ensures a single leading `@` for username or Velix User ID.
+  String _toStoredIdentifier(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+    final withoutAts = trimmed.replaceFirst(RegExp(r'^@+'), '');
+    return '@$withoutAts';
+  }
+
+  Future<void> _onLogin() async {
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) return;
+
+    final success = await ref.read(authProvider.notifier).signIn(
+          velixId: _toStoredIdentifier(_identifierController.text),
+          password: _passwordController.text,
+        );
+
+    if (!mounted) return;
+
+    if (!success) {
+      final error = ref.read(authProvider).error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_errorText(error))),
+      );
+      return;
+    }
+
+    ref.invalidate(currentUserProvider);
+    context.go(AppRoutes.home);
+  }
+
+  String _errorText(Object? error) {
+    if (error == null) return 'Login failed';
+    return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final width = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = width >= 600 ? 48.0 : 28.0;
+    final isLoading = ref.watch(authProvider).isLoading;
 
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
-          child: Column(
-            children: [
-              const Spacer(),
-
-              Image.asset(
-                'assets/images/app_logo.png',
-                height: 160,
-              ),
-
-              const SizedBox(height: 28),
-
-              const Text(
-                'Velix',
-                style: TextStyle(
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'Connect Beyond Limits',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Color(0xFF757575),
-                ),
-              ),
-
-              const Spacer(),
-
-              SizedBox(
-                width: double.infinity,
-                height: 58,
-                child: OutlinedButton(
-                  onPressed: authState.isLoading
-                      ? null
-                      : () async {
-                          final credential = await ref
-                              .read(authProvider.notifier)
-                              .signInWithGoogle();
-
-                          if (!context.mounted ||
-                              credential == null ||
-                              credential.user == null) {
-                            return;
-                          }
-
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const SplashScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(
-                      color: Color(0xFFE8E8E8),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: 24,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(theme),
+                    const SizedBox(height: 36),
+                    _buildIdentifierField(isLoading),
+                    const SizedBox(height: 16),
+                    _buildPasswordField(isLoading),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: isLoading
+                            ? null
+                            : () => context.push(AppRoutes.forgotPassword),
+                        child: Text(
+                          'Forgot Password?',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: authState.isLoading
-                      ? const CircularProgressIndicator()
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset(
-                              'assets/images/google_logo.png',
-                              width: 24,
-                              height: 24,
-                            ),
-                            const SizedBox(width: 14),
-                            const Text(
-                              'Continue with Google',
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: isLoading ? null : _onLogin,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Login',
                               style: TextStyle(
-                                color: Color(0xFF202124),
-                                fontSize: 17,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ],
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => context.go(AppRoutes.register),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 54),
+                        foregroundColor: colorScheme.onSurface,
+                        side: BorderSide(
+                          color: colorScheme.outline.withValues(alpha: 0.35),
                         ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Create Account',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 28),
-
-              const Text(
-                'By continuing, you agree to our\nTerms of Service & Privacy Policy.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.5,
-                  color: Color(0xFF9E9E9E),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader(ThemeData theme) {
+    return Column(
+      children: [
+        Image.asset(
+          'assets/images/app_logo.png',
+          height: 112,
+        ),
+        const SizedBox(height: 22),
+        Text(
+          'Velix',
+          style: theme.textTheme.headlineLarge?.copyWith(
+            fontSize: 40,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Connect Beyond Limits',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIdentifierField(bool isLoading) {
+    return TextFormField(
+      controller: _identifierController,
+      enabled: !isLoading,
+      textInputAction: TextInputAction.next,
+      keyboardType: TextInputType.text,
+      autocorrect: false,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_@]')),
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          // Fixed '@' prefix is visual only — never allow typed '@'.
+          final cleaned = newValue.text.replaceAll('@', '');
+          final cursor = newValue.selection.end;
+          final removedBeforeCursor = '@'
+              .allMatches(newValue.text.substring(0, cursor.clamp(0, newValue.text.length)))
+              .length;
+          final nextOffset =
+              (cursor - removedBeforeCursor).clamp(0, cleaned.length);
+          return TextEditingValue(
+            text: cleaned,
+            selection: TextSelection.collapsed(offset: nextOffset),
+          );
+        }),
+      ],
+      decoration: const InputDecoration(
+        labelText: 'Username or Velix User ID',
+        hintText: 'username or username_VX…',
+        prefixText: '@ ',
+        prefixIcon: Icon(Icons.person_outline_rounded),
+      ),
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return 'Enter your username or Velix User ID';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildPasswordField(bool isLoading) {
+    return TextFormField(
+      controller: _passwordController,
+      enabled: !isLoading,
+      textInputAction: TextInputAction.done,
+      obscureText: _obscurePassword,
+      onFieldSubmitted: (_) {
+        if (!isLoading) _onLogin();
+      },
+      decoration: InputDecoration(
+        labelText: 'Password',
+        hintText: 'Enter your password',
+        prefixIcon: const Icon(Icons.lock_outline_rounded),
+        suffixIcon: IconButton(
+          onPressed: () {
+            setState(() {
+              _obscurePassword = !_obscurePassword;
+            });
+          },
+          icon: Icon(
+            _obscurePassword
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
+          ),
+        ),
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Enter your password';
+        }
+        return null;
+      },
     );
   }
 }
