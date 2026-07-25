@@ -1,4 +1,4 @@
-/// Relative time formatter for Time Capsule (stories + future seen times).
+/// Relative time formatter for Time Capsule stories (`createdAt`).
 String formatStoryRelativeTime(
   DateTime dateTime, {
   DateTime? now,
@@ -11,14 +11,16 @@ String formatStoryRelativeTime(
   }
 
   if (diff.inMinutes < 60) {
-    final mins = diff.inMinutes;
-    return mins == 1 ? '1 min ago' : '$mins mins ago';
+    return '${diff.inMinutes}m';
   }
 
   if (diff.inHours < 24) {
-    final hours = diff.inHours;
-    return hours == 1 ? '1 hour ago' : '$hours hours ago';
+    return '${diff.inHours}h';
   }
 
-  return 'Yesterday';
+  if (diff.inDays == 1) {
+    return 'Yesterday';
+  }
+
+  return '${diff.inDays}d';
 }

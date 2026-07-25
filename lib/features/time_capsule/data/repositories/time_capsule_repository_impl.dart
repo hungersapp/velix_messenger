@@ -40,6 +40,17 @@ class TimeCapsuleRepositoryImpl implements TimeCapsuleRepository {
   }
 
   @override
+  Future<bool> toggleStoryLike({
+    required String storyId,
+    required String userId,
+  }) {
+    return remoteDataSource.toggleStoryLike(
+      storyId: storyId,
+      userId: userId,
+    );
+  }
+
+  @override
   Future<String> uploadMedia({
     required String ownerId,
     required String storyId,
@@ -67,6 +78,22 @@ class TimeCapsuleRepositoryImpl implements TimeCapsuleRepository {
     );
   }
 
+  @override
+  Future<void> deleteStory(StoryEntity story) async {
+    try {
+      await storageDataSource.deleteStoryMedia(
+        ownerId: story.ownerId,
+        storyId: story.id,
+        mediaUrl: story.mediaUrl,
+        thumbnailUrl: story.thumbnailUrl,
+      );
+    } catch (_) {
+      // Continue so Firestore doc can still be removed.
+    }
+
+    await remoteDataSource.deleteStory(story.id);
+  }
+
   StoryEntity _toEntity(StoryModel model) {
     return StoryEntity(
       id: model.id,
@@ -78,6 +105,12 @@ class TimeCapsuleRepositoryImpl implements TimeCapsuleRepository {
       createdAt: model.createdAt.toDate(),
       expiresAt: model.expiresAt.toDate(),
       seenBy: model.seenBy,
+      viewers: model.viewers.map(
+        (key, value) => MapEntry(key, value.toDate()),
+      ),
+      likes: model.likes.map(
+        (key, value) => MapEntry(key, value.toDate()),
+      ),
       visibility: model.visibility,
       durationMs: model.durationMs,
     );
@@ -94,6 +127,12 @@ class TimeCapsuleRepositoryImpl implements TimeCapsuleRepository {
       createdAt: Timestamp.fromDate(entity.createdAt),
       expiresAt: Timestamp.fromDate(entity.expiresAt),
       seenBy: entity.seenBy,
+      viewers: entity.viewers.map(
+        (key, value) => MapEntry(key, Timestamp.fromDate(value)),
+      ),
+      likes: entity.likes.map(
+        (key, value) => MapEntry(key, Timestamp.fromDate(value)),
+      ),
       visibility: entity.visibility,
       durationMs: entity.durationMs,
     );

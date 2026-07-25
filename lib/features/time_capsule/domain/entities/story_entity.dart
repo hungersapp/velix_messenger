@@ -9,6 +9,8 @@ class StoryEntity {
     required this.createdAt,
     required this.expiresAt,
     required this.seenBy,
+    this.viewers = const {},
+    this.likes = const {},
     required this.visibility,
     required this.durationMs,
   });
@@ -21,12 +23,29 @@ class StoryEntity {
   final String? caption;
   final DateTime createdAt;
   final DateTime expiresAt;
+
+  /// Legacy + compatibility list of viewer UIDs.
   final List<String> seenBy;
+
+  /// userId → viewedAt (preferred source for seen count).
+  final Map<String, DateTime> viewers;
+
+  /// userId → likedAt
+  final Map<String, DateTime> likes;
+
   final String visibility; // friends
   final int durationMs;
 
   bool get isImage => mediaType == 'image';
   bool get isVideo => mediaType == 'video';
+
+  /// Unique viewers from [viewers] map and legacy [seenBy].
+  int get seenCount {
+    final ids = <String>{...viewers.keys, ...seenBy};
+    return ids.length;
+  }
+
+  int get likeCount => likes.length;
 
   bool isExpired([DateTime? now]) {
     return (now ?? DateTime.now()).isAfter(expiresAt);
@@ -34,7 +53,10 @@ class StoryEntity {
 
   bool isActive([DateTime? now]) => !isExpired(now);
 
-  bool isSeenBy(String userId) => seenBy.contains(userId);
+  bool isSeenBy(String userId) =>
+      viewers.containsKey(userId) || seenBy.contains(userId);
+
+  bool isLikedBy(String userId) => likes.containsKey(userId);
 
   StoryEntity copyWith({
     String? id,
@@ -46,6 +68,8 @@ class StoryEntity {
     DateTime? createdAt,
     DateTime? expiresAt,
     List<String>? seenBy,
+    Map<String, DateTime>? viewers,
+    Map<String, DateTime>? likes,
     String? visibility,
     int? durationMs,
   }) {
@@ -59,6 +83,8 @@ class StoryEntity {
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
       seenBy: seenBy ?? this.seenBy,
+      viewers: viewers ?? this.viewers,
+      likes: likes ?? this.likes,
       visibility: visibility ?? this.visibility,
       durationMs: durationMs ?? this.durationMs,
     );

@@ -46,6 +46,8 @@ class CreateStoryUseCase {
       createdAt: now,
       expiresAt: now.add(expiryDuration),
       seenBy: const [],
+      viewers: const {},
+      likes: const {},
       visibility: 'friends',
       durationMs: durationMs,
     );

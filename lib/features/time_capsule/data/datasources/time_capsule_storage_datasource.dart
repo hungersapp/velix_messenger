@@ -11,4 +11,12 @@ abstract class TimeCapsuleStorageDataSource {
     required String storyId,
     required String localFilePath,
   });
+
+  /// Deletes media/thumbnail files for a story. Missing files are ignored.
+  Future<void> deleteStoryMedia({
+    required String ownerId,
+    required String storyId,
+    String? mediaUrl,
+    String? thumbnailUrl,
+  });
 }

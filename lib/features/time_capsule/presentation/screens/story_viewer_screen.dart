@@ -8,6 +8,7 @@ import '../../domain/entities/story_entity.dart';
 import '../../domain/entities/story_owner_bucket.dart';
 import '../providers/time_capsule_provider.dart';
 import '../utils/story_time_formatter.dart';
+import '../widgets/story_viewers_sheet.dart';
 
 class StoryViewerScreen extends ConsumerStatefulWidget {
   const StoryViewerScreen({
@@ -37,7 +38,14 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
   bool _isHolding = false;
   final Set<String> _markedSeen = {};
 
-  List<StoryOwnerBucket> get _buckets => widget.buckets;
+  String? _likeStoryId;
+  int _likeCount = 0;
+  bool _likedByMe = false;
+  bool _likeBusy = false;
+  bool _deleteBusy = false;
+  bool _shareBusy = false;
+
+  late List<StoryOwnerBucket> _buckets;
 
   StoryOwnerBucket get _currentBucket => _buckets[_ownerIndex];
 
@@ -46,6 +54,7 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
   @override
   void initState() {
     super.initState();
+    _buckets = List<StoryOwnerBucket>.from(widget.buckets);
     final initial = _buckets.indexWhere(
       (b) => b.ownerId == widget.initialOwnerId,
     );
@@ -81,6 +90,7 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
     _videoController = null;
 
     final story = _currentStory;
+    _syncLikesFrom(story);
     await _markSeen(story);
 
     if (story.isVideo) {
@@ -201,6 +211,59 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
     _videoController?.play();
   }
 
+  void _syncLikesFrom(StoryEntity story) {
+    final uid = ref.read(currentUserProvider).value?.uid;
+    _likeStoryId = story.id;
+    _likeCount = story.likeCount;
+    _likedByMe = uid != null && story.isLikedBy(uid);
+  }
+
+  Future<void> _toggleLike() async {
+    final uid = ref.read(currentUserProvider).value?.uid;
+    if (uid == null || _likeBusy) {
+      return;
+    }
+
+    final storyId = _currentStory.id;
+    final wasLiked = _likedByMe;
+    final previousCount = _likeCount;
+
+    setState(() {
+      _likeBusy = true;
+      _likedByMe = !wasLiked;
+      _likeCount = wasLiked
+          ? (previousCount > 0 ? previousCount - 1 : 0)
+          : previousCount + 1;
+    });
+
+    try {
+      final liked = await ref.read(toggleStoryLikeUseCaseProvider)(
+        storyId: storyId,
+        userId: uid,
+      );
+      if (!mounted || _likeStoryId != storyId) {
+        return;
+      }
+      setState(() {
+        _likedByMe = liked;
+      });
+    } catch (_) {
+      if (!mounted || _likeStoryId != storyId) {
+        return;
+      }
+      setState(() {
+        _likedByMe = wasLiked;
+        _likeCount = previousCount;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _likeBusy = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_buckets.isEmpty) {
@@ -214,6 +277,33 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
         ),
       );
     }
+
+    ref.listen<AsyncValue<List<StoryEntity>>>(activeStoriesProvider, (
+      previous,
+      next,
+    ) {
+      if (_likeBusy) {
+        return;
+      }
+      next.whenData((stories) {
+        StoryEntity? updated;
+        for (final story in stories) {
+          if (story.id == _currentStory.id) {
+            updated = story;
+            break;
+          }
+        }
+        if (updated == null || !mounted) {
+          return;
+        }
+        final uid = ref.read(currentUserProvider).value?.uid ?? '';
+        if (updated.likeCount == _likeCount &&
+            updated.isLikedBy(uid) == _likedByMe) {
+          return;
+        }
+        setState(() => _syncLikesFrom(updated!));
+      });
+    });
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -349,6 +439,25 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
                             ),
                           ),
                           IconButton(
+                            onPressed: _shareBusy
+                                ? null
+                                : () => _shareStory(story),
+                            icon: const Icon(
+                              Icons.ios_share,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (_isOwnerOf(story))
+                            IconButton(
+                              onPressed: _deleteBusy
+                                  ? null
+                                  : () => _confirmDeleteStory(story),
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.white,
+                              ),
+                            ),
+                          IconButton(
                             onPressed: () => Navigator.of(context).pop(),
                             icon: const Icon(Icons.close, color: Colors.white),
                           ),
@@ -356,6 +465,74 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
                       ),
                     ),
                     const Spacer(),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        0,
+                        16,
+                        story.caption != null &&
+                                story.caption!.trim().isNotEmpty
+                            ? 12
+                            : 24,
+                      ),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _toggleLike,
+                            behavior: HitTestBehavior.opaque,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _likedByMe
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: _likedByMe
+                                      ? const Color(0xFFE11D48)
+                                      : Colors.white,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '$_likeCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_isOwnerOf(story)) ...[
+                            const SizedBox(width: 20),
+                            GestureDetector(
+                              onTap: () => _openViewersSheet(story),
+                              behavior: HitTestBehavior.opaque,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.remove_red_eye_outlined,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${story.seenCount}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                     if (story.caption != null &&
                         story.caption!.trim().isNotEmpty)
                       Padding(
@@ -377,6 +554,200 @@ class _StoryViewerScreenState extends ConsumerState<StoryViewerScreen>
         },
       ),
     );
+  }
+
+  bool _isOwnerOf(StoryEntity story) {
+    final uid = ref.read(currentUserProvider).value?.uid;
+    if (uid == null) {
+      return false;
+    }
+    return story.ownerId == uid;
+  }
+
+  Future<void> _shareStory(StoryEntity story) async {
+    if (_shareBusy) {
+      return;
+    }
+
+    setState(() => _shareBusy = true);
+    _onHoldStart();
+
+    try {
+      await ref.read(timeCapsuleShareServiceProvider).shareStory(story);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to share this Time Capsule.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        _onHoldEnd();
+        setState(() => _shareBusy = false);
+      }
+    }
+  }
+
+  Future<void> _openViewersSheet(StoryEntity story) async {
+    if (!_isOwnerOf(story)) {
+      return;
+    }
+
+    _onHoldStart();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) {
+          return StoryViewersSheet(story: story);
+        },
+      );
+    } finally {
+      if (mounted) {
+        _onHoldEnd();
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteStory(StoryEntity story) async {
+    if (!_isOwnerOf(story) || _deleteBusy) {
+      return;
+    }
+
+    _onHoldStart();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Time Capsule?'),
+          content: const Text('This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFE11D48),
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (confirmed != true) {
+      _onHoldEnd();
+      return;
+    }
+
+    await _deleteStory(story);
+  }
+
+  Future<void> _deleteStory(StoryEntity story) async {
+    final uid = ref.read(currentUserProvider).value?.uid;
+    if (uid == null) {
+      _onHoldEnd();
+      return;
+    }
+
+    setState(() => _deleteBusy = true);
+
+    try {
+      await ref.read(deleteStoryUseCaseProvider)(
+        story: story,
+        requesterId: uid,
+      );
+      if (!mounted) {
+        return;
+      }
+      _isHolding = false;
+      _isPaused = false;
+      _removeStoryLocally(story.id);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete story. Please try again.'),
+        ),
+      );
+      _onHoldEnd();
+    } finally {
+      if (mounted) {
+        setState(() => _deleteBusy = false);
+      }
+    }
+  }
+
+  void _removeStoryLocally(String storyId) {
+    if (_buckets.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    final bucket = _buckets[_ownerIndex];
+    final remainingStories = bucket.stories
+        .where((story) => story.id != storyId)
+        .toList(growable: false);
+
+    if (remainingStories.isEmpty) {
+      final updatedBuckets = List<StoryOwnerBucket>.from(_buckets)
+        ..removeAt(_ownerIndex);
+
+      if (updatedBuckets.isEmpty) {
+        Navigator.of(context).pop();
+        return;
+      }
+
+      var nextOwnerIndex = _ownerIndex;
+      if (nextOwnerIndex >= updatedBuckets.length) {
+        nextOwnerIndex = updatedBuckets.length - 1;
+      }
+
+      setState(() {
+        _buckets = updatedBuckets;
+        _ownerIndex = nextOwnerIndex;
+        _storyIndex = 0;
+      });
+
+      if (_ownerPageController.hasClients) {
+        _ownerPageController.jumpToPage(_ownerIndex);
+      }
+      _loadCurrentStory();
+      return;
+    }
+
+    var nextStoryIndex = _storyIndex;
+    if (nextStoryIndex >= remainingStories.length) {
+      nextStoryIndex = remainingStories.length - 1;
+    }
+
+    final updatedBucket = StoryOwnerBucket(
+      ownerId: bucket.ownerId,
+      ownerName: bucket.ownerName,
+      ownerPhotoUrl: bucket.ownerPhotoUrl,
+      stories: remainingStories,
+    );
+
+    final updatedBuckets = List<StoryOwnerBucket>.from(_buckets);
+    updatedBuckets[_ownerIndex] = updatedBucket;
+
+    setState(() {
+      _buckets = updatedBuckets;
+      _storyIndex = nextStoryIndex;
+    });
+    _loadCurrentStory();
   }
 }
 

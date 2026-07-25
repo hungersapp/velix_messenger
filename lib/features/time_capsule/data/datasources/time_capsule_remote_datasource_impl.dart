@@ -45,8 +45,85 @@ class TimeCapsuleRemoteDataSourceImpl
     required String storyId,
     required String viewerId,
   }) async {
-    await _collection.doc(storyId).update({
-      'seenBy': FieldValue.arrayUnion([viewerId]),
+    final docRef = _collection.doc(storyId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      if (!snapshot.exists) {
+        return;
+      }
+
+      final data = snapshot.data();
+      if (data == null) {
+        return;
+      }
+
+      final viewersRaw = data['viewers'];
+      if (viewersRaw is Map && viewersRaw.containsKey(viewerId)) {
+        return;
+      }
+
+      final seenBy = List<String>.from(data['seenBy'] ?? const []);
+      if (seenBy.contains(viewerId)) {
+        // Legacy doc: already counted in seenBy; backfill viewers map once.
+        transaction.update(docRef, {
+          'viewers.$viewerId': Timestamp.now(),
+        });
+        return;
+      }
+
+      transaction.update(docRef, {
+        'viewers.$viewerId': Timestamp.now(),
+        'seenBy': FieldValue.arrayUnion([viewerId]),
+      });
     });
+  }
+
+  @override
+  Future<bool> toggleStoryLike({
+    required String storyId,
+    required String userId,
+  }) async {
+    final docRef = _collection.doc(storyId);
+
+    return _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      if (!snapshot.exists) {
+        return false;
+      }
+
+      final data = snapshot.data();
+      if (data == null) {
+        return false;
+      }
+
+      final likesRaw = data['likes'];
+      final alreadyLiked =
+          likesRaw is Map && likesRaw.containsKey(userId);
+
+      if (alreadyLiked) {
+        transaction.update(docRef, {
+          'likes.$userId': FieldValue.delete(),
+        });
+        return false;
+      }
+
+      transaction.update(docRef, {
+        'likes.$userId': Timestamp.now(),
+      });
+      return true;
+    });
+  }
+
+  @override
+  Future<void> deleteStory(String storyId) async {
+    try {
+      await _collection.doc(storyId).delete();
+    } on FirebaseException catch (e) {
+      if (e.code == 'not-found') {
+        return;
+      }
+      rethrow;
+    }
   }
 }

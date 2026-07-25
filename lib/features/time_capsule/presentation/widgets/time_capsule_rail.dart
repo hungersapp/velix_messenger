@@ -7,6 +7,7 @@ import '../../../../app/app_routes.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../providers/time_capsule_provider.dart';
 import '../services/time_capsule_media_service.dart';
+import '../utils/story_time_formatter.dart';
 import '../../domain/entities/story_owner_bucket.dart';
 
 class TimeCapsuleRail extends ConsumerWidget {
@@ -64,7 +65,7 @@ class TimeCapsuleRail extends ConsumerWidget {
           ),
         ),
         SizedBox(
-          height: 110,
+          height: 118,
           child: bucketsAsync.when(
             loading: () => const Center(
               child: SizedBox(
@@ -404,12 +405,21 @@ class _YourTimeCapsuleBubble extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             showUploadRing ? 'Uploading' : 'Your TC',
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 12),
           ),
+          if (!showUploadRing && hasStories)
+            Text(
+              formatStoryRelativeTime(bucket.latestCreatedAt),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade600,
+              ),
+            ),
         ],
       ),
     );
@@ -456,11 +466,19 @@ class _FriendTimeCapsuleBubble extends StatelessWidget {
                     : null,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               bucket.ownerName,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12),
+            ),
+            Text(
+              formatStoryRelativeTime(bucket.latestCreatedAt),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade600,
+              ),
             ),
           ],
         ),

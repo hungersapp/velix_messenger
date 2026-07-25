@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../../core/services/firebase_storage_service.dart';
@@ -9,10 +10,12 @@ class TimeCapsuleStorageDataSourceImpl
     implements TimeCapsuleStorageDataSource {
   TimeCapsuleStorageDataSourceImpl({
     FirebaseStorageService? storageService,
-  }) : _storageService =
-            storageService ?? FirebaseStorageService();
+    FirebaseStorage? storage,
+  })  : _storageService = storageService ?? FirebaseStorageService(),
+        _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseStorageService _storageService;
+  final FirebaseStorage _storage;
 
   @override
   Future<String> uploadMedia({
@@ -53,5 +56,56 @@ class TimeCapsuleStorageDataSourceImpl
       file: file,
       contentType: 'image/jpeg',
     );
+  }
+
+  @override
+  Future<void> deleteStoryMedia({
+    required String ownerId,
+    required String storyId,
+    String? mediaUrl,
+    String? thumbnailUrl,
+  }) async {
+    await _deleteByUrl(mediaUrl);
+    await _deleteByUrl(thumbnailUrl);
+    await _deletePrefix(_storage.ref('time_capsule/$ownerId/$storyId'));
+  }
+
+  Future<void> _deleteByUrl(String? url) async {
+    if (url == null || url.trim().isEmpty) {
+      return;
+    }
+    try {
+      await _storage.refFromURL(url).delete();
+    } on FirebaseException catch (e) {
+      if (e.code == 'object-not-found' || e.code == 'invalid-argument') {
+        return;
+      }
+      rethrow;
+    } catch (_) {
+      // Non-fatal for orphaned/invalid URLs.
+    }
+  }
+
+  Future<void> _deletePrefix(Reference ref) async {
+    try {
+      final result = await ref.listAll();
+      for (final item in result.items) {
+        try {
+          await item.delete();
+        } on FirebaseException catch (e) {
+          if (e.code != 'object-not-found') {
+            rethrow;
+          }
+        }
+      }
+      for (final prefix in result.prefixes) {
+        await _deletePrefix(prefix);
+      }
+    } on FirebaseException catch (e) {
+      if (e.code == 'object-not-found') {
+        return;
+      }
+      rethrow;
+    }
   }
 }

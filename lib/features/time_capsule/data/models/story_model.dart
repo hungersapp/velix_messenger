@@ -11,6 +11,8 @@ class StoryModel {
     required this.createdAt,
     required this.expiresAt,
     required this.seenBy,
+    this.viewers = const {},
+    this.likes = const {},
     required this.visibility,
     required this.durationMs,
   });
@@ -24,6 +26,8 @@ class StoryModel {
   final Timestamp createdAt;
   final Timestamp expiresAt;
   final List<String> seenBy;
+  final Map<String, Timestamp> viewers;
+  final Map<String, Timestamp> likes;
   final String visibility;
   final int durationMs;
 
@@ -41,6 +45,8 @@ class StoryModel {
       createdAt: map['createdAt'] as Timestamp? ?? Timestamp.now(),
       expiresAt: map['expiresAt'] as Timestamp? ?? Timestamp.now(),
       seenBy: List<String>.from(map['seenBy'] ?? const []),
+      viewers: _parseTimestampMap(map['viewers']),
+      likes: _parseTimestampMap(map['likes']),
       visibility: map['visibility'] as String? ?? 'friends',
       durationMs: map['durationMs'] as int? ?? 5000,
     );
@@ -56,8 +62,28 @@ class StoryModel {
       'createdAt': createdAt,
       'expiresAt': expiresAt,
       'seenBy': seenBy,
+      'viewers': viewers,
+      'likes': likes,
       'visibility': visibility,
       'durationMs': durationMs,
     };
+  }
+
+  static Map<String, Timestamp> _parseTimestampMap(dynamic raw) {
+    if (raw is! Map) {
+      return const {};
+    }
+
+    final result = <String, Timestamp>{};
+    raw.forEach((key, value) {
+      final userId = key?.toString();
+      if (userId == null || userId.isEmpty) {
+        return;
+      }
+      if (value is Timestamp) {
+        result[userId] = value;
+      }
+    });
+    return result;
   }
 }

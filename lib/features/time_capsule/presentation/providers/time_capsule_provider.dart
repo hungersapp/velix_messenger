@@ -13,9 +13,13 @@ import '../../domain/entities/story_entity.dart';
 import '../../domain/entities/story_owner_bucket.dart';
 import '../../domain/repositories/time_capsule_repository.dart';
 import '../../domain/usecases/create_story_usecase.dart';
+import '../../domain/usecases/delete_story_usecase.dart';
+import '../../domain/usecases/get_story_viewers_usecase.dart';
 import '../../domain/usecases/mark_story_seen_usecase.dart';
+import '../../domain/usecases/toggle_story_like_usecase.dart';
 import '../../domain/usecases/watch_active_stories_usecase.dart';
 import '../services/time_capsule_media_service.dart';
+import '../services/time_capsule_share_service.dart';
 
 final timeCapsuleRemoteDataSourceProvider =
     Provider<TimeCapsuleRemoteDataSource>(
@@ -54,9 +58,32 @@ final markStorySeenUseCaseProvider = Provider<MarkStorySeenUseCase>(
   ),
 );
 
+final getStoryViewersUseCaseProvider = Provider<GetStoryViewersUseCase>(
+  (ref) => GetStoryViewersUseCase(
+    ref.watch(getUserUseCaseProvider),
+  ),
+);
+
+final toggleStoryLikeUseCaseProvider = Provider<ToggleStoryLikeUseCase>(
+  (ref) => ToggleStoryLikeUseCase(
+    ref.watch(timeCapsuleRepositoryProvider),
+  ),
+);
+
+final deleteStoryUseCaseProvider = Provider<DeleteStoryUseCase>(
+  (ref) => DeleteStoryUseCase(
+    ref.watch(timeCapsuleRepositoryProvider),
+  ),
+);
+
 final timeCapsuleMediaServiceProvider =
     Provider<TimeCapsuleMediaService>(
   (ref) => TimeCapsuleMediaService(),
+);
+
+final timeCapsuleShareServiceProvider =
+    Provider<TimeCapsuleShareService>(
+  (ref) => TimeCapsuleShareService(),
 );
 
 /// Active stories from Firestore (expiresAt > now).
