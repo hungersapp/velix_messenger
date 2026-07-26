@@ -8,6 +8,8 @@ class ChatAppBar extends StatelessWidget
   final bool isTyping;
   final VoidCallback onBack;
   final VoidCallback? onMenuPressed;
+  final VoidCallback? onVoiceCallPressed;
+  final VoidCallback? onVideoCallPressed;
 
   const ChatAppBar({
     super.key,
@@ -17,6 +19,8 @@ class ChatAppBar extends StatelessWidget
     this.isOnline = false,
     this.isTyping = false,
     this.onMenuPressed,
+    this.onVoiceCallPressed,
+    this.onVideoCallPressed,
   });
 
   @override
@@ -89,6 +93,18 @@ class ChatAppBar extends StatelessWidget
         ],
       ),
       actions: [
+        if (onVoiceCallPressed != null)
+          IconButton(
+            onPressed: onVoiceCallPressed,
+            icon: const Icon(Icons.call),
+            tooltip: 'Voice call',
+          ),
+        if (onVideoCallPressed != null)
+          IconButton(
+            onPressed: onVideoCallPressed,
+            icon: const Icon(Icons.videocam),
+            tooltip: 'Video call',
+          ),
         if (onMenuPressed != null)
           IconButton(
             onPressed: onMenuPressed,

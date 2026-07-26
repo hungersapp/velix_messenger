@@ -2,7 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/debug/nav_debug_log.dart';
+import '../../../calling/presentation/providers/call_controller.dart';
+import '../../../calling/presentation/screens/active_call_screen.dart';
+import '../../../calling/presentation/screens/active_video_call_screen.dart';
+import '../../../calling/domain/entities/call_session.dart';
+import '../../domain/entities/file_upload_result.dart';
+import '../../domain/entities/media_upload_result.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/voice_upload_result.dart';
 import '../providers/conversation_provider.dart';
 import '../providers/message_provider.dart';
 import '../providers/message_receipt_controller.dart';
@@ -11,7 +18,6 @@ import '../widgets/chat_app_bar.dart';
 import '../widgets/message_input.dart';
 import '../widgets/message_list.dart';
 import '../widgets/typing_indicator.dart';
-import '../../domain/entities/media_upload_result.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -226,6 +232,119 @@ Future<void> _sendImageMessage(String imageUrl) async {
       .read(messageControllerProvider.notifier)
       .sendMessage(message);
 }
+
+  Future<void> _sendFileMessage(FileUploadResult result) async {
+    final message = Message(
+      id: '',
+      conversationId: widget.conversationId,
+      senderId: widget.currentUserId,
+      messageType: 'file',
+      message: result.fileName,
+      mediaUrl: result.mediaUrl,
+      thumbnailUrl: null,
+      fileName: result.fileName,
+      fileSize: result.fileSize,
+      mimeType: result.mimeType,
+      status: 'sent',
+      sentAt: DateTime.now(),
+      deliveredAt: null,
+      readAt: null,
+      replyToMessageId: null,
+      isEdited: false,
+      isDeleted: false,
+      deletedFor: const [],
+    );
+
+    await ref.read(messageControllerProvider.notifier).sendMessage(message);
+  }
+
+  Future<void> _sendVoiceMessage(VoiceUploadResult result) async {
+    final message = Message(
+      id: '',
+      conversationId: widget.conversationId,
+      senderId: widget.currentUserId,
+      messageType: 'voice',
+      message: result.durationMs.toString(),
+      mediaUrl: result.mediaUrl,
+      thumbnailUrl: null,
+      fileName: result.fileName,
+      fileSize: result.fileSize,
+      mimeType: result.mimeType,
+      status: 'sent',
+      sentAt: DateTime.now(),
+      deliveredAt: null,
+      readAt: null,
+      replyToMessageId: null,
+      isEdited: false,
+      isDeleted: false,
+      deletedFor: const [],
+    );
+
+    await ref.read(messageControllerProvider.notifier).sendMessage(message);
+  }
+
+  Future<void> _startVoiceCall() async {
+    final started =
+        await ref.read(callControllerProvider.notifier).startOutgoingCall(
+              conversationId: widget.conversationId,
+              receiverId: widget.otherUserId,
+              receiverName: widget.userName,
+              receiverPhotoUrl: widget.profileImageUrl,
+              callType: CallType.voice,
+            );
+
+    if (!started) {
+      final error = ref.read(callControllerProvider).errorMessage;
+      if (!mounted) return;
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+        ref.read(callControllerProvider.notifier).clearError();
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => const ActiveCallScreen(),
+      ),
+    );
+  }
+
+  Future<void> _startVideoCall() async {
+    final started =
+        await ref.read(callControllerProvider.notifier).startOutgoingCall(
+              conversationId: widget.conversationId,
+              receiverId: widget.otherUserId,
+              receiverName: widget.userName,
+              receiverPhotoUrl: widget.profileImageUrl,
+              callType: CallType.video,
+            );
+
+    if (!started) {
+      final error = ref.read(callControllerProvider).errorMessage;
+      if (!mounted) return;
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+        ref.read(callControllerProvider.notifier).clearError();
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => const ActiveVideoCallScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     navLog('Chat', 'build', {
@@ -264,6 +383,8 @@ Future<void> _sendImageMessage(String imageUrl) async {
             isOnline: false,
             isTyping: isTyping,
             onBack: _onBackPressed,
+            onVoiceCallPressed: _startVoiceCall,
+            onVideoCallPressed: _startVideoCall,
           );
         },
         loading: () => ChatAppBar(
@@ -273,6 +394,8 @@ Future<void> _sendImageMessage(String imageUrl) async {
           isOnline: false,
           isTyping: false,
           onBack: _onBackPressed,
+          onVoiceCallPressed: _startVoiceCall,
+          onVideoCallPressed: _startVideoCall,
         ),
         error: (_, _) => ChatAppBar(
           userName: widget.userName,
@@ -281,6 +404,8 @@ Future<void> _sendImageMessage(String imageUrl) async {
           isOnline: false,
           isTyping: false,
           onBack: _onBackPressed,
+          onVoiceCallPressed: _startVoiceCall,
+          onVideoCallPressed: _startVideoCall,
         ),
       ),
       body: Column(
@@ -336,17 +461,11 @@ Future<void> _sendImageMessage(String imageUrl) async {
             onSend: _sendMessage,
             onImageSelected: _sendImageMessage,
             onVideoSelected: _sendVideoMessage,
-
-            onEmojiPressed: () {
-              // TODO
-            },
+            onFileSelected: _sendFileMessage,
+            onVoiceSelected: _sendVoiceMessage,
 
             onVelixPressed: () {
               // TODO
-            },
-
-            onVoice: () {
-              // Reserved for future V2
             },
           ),
         ],

@@ -104,10 +104,13 @@ class MessageList extends ConsumerWidget {
 
         return MessageBubble(
           key: ValueKey('message_${message.id}'),
+          messageId: message.id,
           message: message.message,
           messageType: message.messageType,
           mediaUrl: message.mediaUrl,
           thumbnailUrl: message.thumbnailUrl,
+          fileName: message.fileName,
+          fileSize: message.fileSize,
           sentAt: message.sentAt,
           isMe: message.senderId == currentUserId,
           status: message.status,

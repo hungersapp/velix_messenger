@@ -7,6 +7,7 @@ import '../features/authentication/presentation/screens/forgot_password_screen.d
 import '../features/authentication/presentation/screens/legal_document_screen.dart';
 import '../features/authentication/presentation/screens/login_screen.dart';
 import '../features/authentication/presentation/screens/register_screen.dart';
+import '../features/calling/presentation/screens/call_history_screen.dart';
 import '../features/chat/presentation/screens/chat_screen.dart';
 import '../features/contacts/presentation/screens/contacts_screen.dart';
 import '../features/home/presentation/screens/home_screen.dart';
@@ -111,6 +112,11 @@ class AppPages {
                 data['profileImageUrl'] as String?,
           );
         },
+      ),
+
+      GoRoute(
+        path: AppRoutes.calls,
+        builder: (context, state) => const CallHistoryScreen(),
       ),
 
       GoRoute(

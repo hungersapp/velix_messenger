@@ -72,7 +72,10 @@
     <string>Velix needs access to your contacts to find friends using Velix.</string>
 
 	<key>NSCameraUsageDescription</key>
-	<string>Velix needs camera access to scan Velix QR codes and connect with friends.</string>
+	<string>Velix needs camera access to capture photos in chat and scan Velix QR codes.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Velix needs microphone access to record and send voice messages.</string>
 	
 </dict>
 </plist>

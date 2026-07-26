@@ -1,10 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../screens/image_viewer_screen.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/video_player_screen.dart';
+import 'voice_message_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
+  final String messageId;
   final String message;
   final String messageType;
   final String? mediaUrl;
@@ -12,9 +16,12 @@ class MessageBubble extends StatelessWidget {
   final bool isMe;
   final String status;
   final String? thumbnailUrl;
+  final String? fileName;
+  final int? fileSize;
 
   const MessageBubble({
     super.key,
+    required this.messageId,
     required this.message,
     required this.messageType,
     this.mediaUrl,
@@ -22,6 +29,8 @@ class MessageBubble extends StatelessWidget {
     required this.isMe,
     required this.status,
     this.thumbnailUrl,
+    this.fileName,
+    this.fileSize,
   });
 
   String _formatTime(DateTime dateTime) {
@@ -156,6 +165,24 @@ class MessageBubble extends StatelessWidget {
   videoUrl: mediaUrl!,
   thumbnailUrl: thumbnailUrl,
 )
+  else if (messageType == 'file' &&
+      mediaUrl != null &&
+      mediaUrl!.isNotEmpty)
+    DocumentMessagePreview(
+      mediaUrl: mediaUrl!,
+      fileName: fileName ?? 'Document',
+      fileSize: fileSize,
+      isMe: isMe,
+    )
+  else if (messageType == 'voice' &&
+      mediaUrl != null &&
+      mediaUrl!.isNotEmpty)
+    VoiceMessageBubble(
+      messageId: messageId,
+      mediaUrl: mediaUrl!,
+      isMe: isMe,
+      durationMs: int.tryParse(message),
+    )
   else
     Text(
       message,
@@ -198,6 +225,143 @@ class MessageBubble extends StatelessWidget {
     );
   }
 }
+
+class DocumentMessagePreview extends StatefulWidget {
+  const DocumentMessagePreview({
+    super.key,
+    required this.mediaUrl,
+    required this.fileName,
+    required this.isMe,
+    this.fileSize,
+  });
+
+  final String mediaUrl;
+  final String fileName;
+  final int? fileSize;
+  final bool isMe;
+
+  @override
+  State<DocumentMessagePreview> createState() =>
+      _DocumentMessagePreviewState();
+}
+
+class _DocumentMessagePreviewState extends State<DocumentMessagePreview> {
+  bool _opening = false;
+
+  Future<void> _openDocument() async {
+    if (_opening) return;
+    setState(() => _opening = true);
+
+    try {
+      final file = await DefaultCacheManager().getSingleFile(widget.mediaUrl);
+      final result = await OpenFilex.open(file.path);
+      if (!mounted) return;
+      if (result.type != ResultType.done) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message.isNotEmpty
+                  ? result.message
+                  : 'Unable to open this document.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to download or open this document.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _opening = false);
+      }
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
+    final mb = kb / 1024;
+    return '${mb.toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onColor =
+        widget.isMe ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface;
+    final subtle = onColor.withValues(alpha: 0.75);
+    final sizeLabel =
+        widget.fileSize != null ? _formatBytes(widget.fileSize!) : null;
+
+    return Material(
+      color: onColor.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: _opening ? null : _openDocument,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(
+                Icons.insert_drive_file_rounded,
+                size: 36,
+                color: onColor,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.fileName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: onColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (sizeLabel != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        sizeLabel,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: subtle,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (_opening)
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: onColor,
+                  ),
+                )
+              else
+                Icon(
+                  Icons.download_rounded,
+                  color: onColor,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class VideoMessagePreview extends StatelessWidget {
   final String videoUrl;
   final String? thumbnailUrl;

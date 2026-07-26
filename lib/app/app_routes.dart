@@ -15,6 +15,8 @@ class AppRoutes {
 
   static const chat = '/chat';
 
+  static const calls = '/calls';
+
   static const timeCapsuleViewer = '/time-capsule/viewer';
 
   static const profile = '/profile';
