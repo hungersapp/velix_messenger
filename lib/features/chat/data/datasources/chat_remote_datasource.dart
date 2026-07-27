@@ -22,27 +22,47 @@ abstract class ChatRemoteDataSource {
     String conversationId,
   );
 
-  /// Get all conversations of a user
+  /// Get realtime conversations (latest page only)
   Stream<List<ConversationModel>> getConversations(
     String userId,
   );
+
+  /// Older conversations after [beforeConversationId] (cursor-based, one page).
+  Future<List<ConversationModel>> getOlderConversations({
+    required String userId,
+    required String beforeConversationId,
+    int limit = 30,
+  });
 
   /// Send a new message
   Future<void> sendMessage(
     MessageModel message,
   );
 
-  /// Get realtime messages
+  /// Get realtime messages (latest page only)
   Stream<List<MessageModel>> getMessages(
     String conversationId,
   );
 
-  /// Update conversation metadata
+  /// Older messages before [beforeMessageId] (cursor-based, one page).
+  Future<List<MessageModel>> getOlderMessages({
+    required String conversationId,
+    required String beforeMessageId,
+    int limit = 50,
+  });
+
+  /// Update conversation metadata (last message + unread increments for others)
   Future<void> updateConversation({
     required String conversationId,
     required String lastMessage,
     required String lastMessageSenderId,
     required String lastMessageType,
+  });
+
+  /// Clears the conversation-level unread badge for [userId] (one write).
+  Future<void> clearConversationUnread({
+    required String conversationId,
+    required String userId,
   });
 
   /// Update typing status

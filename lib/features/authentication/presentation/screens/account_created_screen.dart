@@ -47,13 +47,22 @@ class _AccountCreatedScreenState extends State<AccountCreatedScreen>
   }
 
   Future<void> _copyRecoveryKey() async {
-    await Clipboard.setData(
-      ClipboardData(text: widget.args.recoverySecurityKey),
-    );
+    final key = widget.args.recoverySecurityKey;
+    await Clipboard.setData(ClipboardData(text: key));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Recovery Security Key copied')),
+      const SnackBar(
+        content: Text(
+          'Recovery Security Key copied. Clipboard clears in 60 seconds.',
+        ),
+      ),
     );
+    Future<void>.delayed(const Duration(seconds: 60), () async {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      if (data?.text == key) {
+        await Clipboard.setData(const ClipboardData(text: ''));
+      }
+    });
   }
 
   @override

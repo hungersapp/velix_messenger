@@ -18,6 +18,9 @@ import '../widgets/chat_app_bar.dart';
 import '../widgets/message_input.dart';
 import '../widgets/message_list.dart';
 import '../widgets/typing_indicator.dart';
+import 'dart:io';
+import '../../../settings/domain/entities/settings_models.dart';
+import '../../../settings/presentation/providers/settings_feature_providers.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -45,6 +48,11 @@ class _ChatScreenState
   late final TextEditingController _controller;
   final Set<String> _deliveredInFlight = {};
   final Set<String> _readInFlight = {};
+  final Set<String> _deliveredDone = {};
+  final Set<String> _readDone = {};
+  bool _unreadClearInFlight = false;
+  int _unreadClearGeneration = 0;
+  Future<void> _receiptsQueue = Future<void>.value();
 
   @override
   void initState() {
@@ -54,6 +62,11 @@ class _ChatScreenState
       'conversationId': widget.conversationId,
       'currentUser': widget.currentUserId,
       'otherUserId': widget.otherUserId,
+    });
+    // Clear conversation summary badge immediately — do not scan messages.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _clearUnreadBadge();
     });
   }
 
@@ -66,6 +79,20 @@ class _ChatScreenState
       'goRouterLocation': goRouterLocationOf(context),
       'mounted': mounted,
     });
+  }
+
+  @override
+  void deactivate() {
+    // Clear typing while ref is still valid (dispose cannot use ref safely).
+    try {
+      ref.read(typingControllerProvider.notifier).updateTypingStatus(
+            conversationId: widget.conversationId,
+            userId: widget.currentUserId,
+            isTyping: false,
+          );
+    } catch (_) {}
+    _unreadClearGeneration++;
+    super.deactivate();
   }
 
   @override
@@ -94,13 +121,48 @@ class _ChatScreenState
     });
   }
 
+  Future<void> _clearUnreadBadge() async {
+    if (_unreadClearInFlight) return;
+    final generation = _unreadClearGeneration;
+    if (!mounted || generation != _unreadClearGeneration) return;
+
+    _unreadClearInFlight = true;
+    try {
+      // Skip if the user already left before the write starts.
+      if (!mounted || generation != _unreadClearGeneration) return;
+      await ref.read(messageControllerProvider.notifier).clearConversationUnread(
+            conversationId: widget.conversationId,
+            userId: widget.currentUserId,
+          );
+    } catch (_) {
+      // Badge clear is best-effort; receipts still run independently.
+    } finally {
+      _unreadClearInFlight = false;
+    }
+  }
+
   Future<void> _processMessageReceipts(
     List<Message> messages,
+  ) {
+    // Serialize overlapping listen callbacks so delivered cannot race past read.
+    _receiptsQueue = _receiptsQueue
+        .catchError((_) {})
+        .then((_) => _processMessageReceiptsBody(messages));
+    return _receiptsQueue;
+  }
+
+  Future<void> _processMessageReceiptsBody(
+    List<Message> messages,
   ) async {
+    if (!mounted) return;
+
     final receiptController =
         ref.read(messageReceiptControllerProvider);
     final conversationId = widget.conversationId;
     final currentUserId = widget.currentUserId;
+
+    final deliverIds = <String>[];
+    final readIds = <String>[];
 
     for (final message in messages) {
       if (message.senderId == currentUserId) continue;
@@ -109,40 +171,143 @@ class _ChatScreenState
       final messageId = message.id;
 
       if (message.status == 'sent' &&
-          !_deliveredInFlight.contains(messageId)) {
-        _deliveredInFlight.add(messageId);
-        try {
-          await receiptController.markDelivered(
-            conversationId: conversationId,
-            messageId: messageId,
-          );
-        } catch (_) {
-          // Allow retry on a future stream emission.
-        } finally {
-          _deliveredInFlight.remove(messageId);
-        }
+          !_deliveredInFlight.contains(messageId) &&
+          !_deliveredDone.contains(messageId) &&
+          !_readDone.contains(messageId)) {
+        deliverIds.add(messageId);
       }
 
       if (message.status != 'read' &&
-          !_readInFlight.contains(messageId)) {
-        _readInFlight.add(messageId);
-        try {
-          await receiptController.markRead(
-            conversationId: conversationId,
-            messageId: messageId,
-          );
-        } catch (_) {
-          // Allow retry on a future stream emission.
-        } finally {
-          _readInFlight.remove(messageId);
-        }
+          !_readInFlight.contains(messageId) &&
+          !_readDone.contains(messageId)) {
+        readIds.add(messageId);
       }
     }
+
+    // Cap concurrent receipt writes to avoid write storms on large pages.
+    const batchSize = 8;
+    for (var i = 0; i < deliverIds.length; i += batchSize) {
+      final batch = deliverIds.skip(i).take(batchSize).toList();
+      await Future.wait(
+        batch.map((messageId) async {
+          if (_readDone.contains(messageId)) return;
+          _deliveredInFlight.add(messageId);
+          try {
+            await receiptController.markDelivered(
+              conversationId: conversationId,
+              messageId: messageId,
+            );
+            _deliveredDone.add(messageId);
+          } catch (_) {
+            // Allow retry on a future stream emission.
+          } finally {
+            _deliveredInFlight.remove(messageId);
+          }
+        }),
+      );
+    }
+
+    var markedAnyRead = false;
+    for (var i = 0; i < readIds.length; i += batchSize) {
+      final batch = readIds.skip(i).take(batchSize).toList();
+      await Future.wait(
+        batch.map((messageId) async {
+          _readInFlight.add(messageId);
+          try {
+            await receiptController.markRead(
+              conversationId: conversationId,
+              messageId: messageId,
+            );
+            _readDone.add(messageId);
+            markedAnyRead = true;
+          } catch (_) {
+            // Allow retry on a future stream emission.
+          } finally {
+            _readInFlight.remove(messageId);
+          }
+        }),
+      );
+    }
+
+    // Keep Home badge in sync while this chat stays open (1 summary write).
+    if (mounted && (markedAnyRead || readIds.isNotEmpty)) {
+      await _clearUnreadBadge();
+    }
   }
+
+  Future<bool> _ensureNotBlocked() async {
+    try {
+      final blocked = await ref.read(settingsRepositoryProvider).isBlockedEitherWay(
+            userA: widget.currentUserId,
+            userB: widget.otherUserId,
+          );
+      if (!blocked) return true;
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Messaging is unavailable with this user.'),
+        ),
+      );
+      return false;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+      return false;
+    }
+  }
+
+  Future<void> _blockUser() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Block user?'),
+        content: Text(
+          'Block ${widget.userName}? They will not be able to message or call you.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(settingsRepositoryProvider).blockUser(
+            currentUserId: widget.currentUserId,
+            user: BlockedUser(
+              uid: widget.otherUserId,
+              displayName: widget.userName,
+              velixId: '',
+              photoUrl: widget.profileImageUrl ?? '',
+              blockedAt: DateTime.now(),
+            ),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${widget.userName} blocked')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
 
     if (text.isEmpty) return;
+    if (!await _ensureNotBlocked()) return;
 
     final message = Message(
   id: '',
@@ -180,67 +345,100 @@ class _ChatScreenState
   }
 
   Future<void> _sendVideoMessage(MediaUploadResult result) async {
-  final message = Message(
-    id: '',
-    conversationId: widget.conversationId,
-    senderId: widget.currentUserId,
-    messageType: 'video',
-    message: '',
-    mediaUrl: result.mediaUrl,
-    thumbnailUrl: result.thumbnailUrl,
-    fileName: null,
-    fileSize: null,
-    mimeType: 'video/mp4',
-    status: 'sent',
-    sentAt: DateTime.now(),
-    deliveredAt: null,
-    readAt: null,
-    replyToMessageId: null,
-    isEdited: false,
-    isDeleted: false,
-    deletedFor: const [],
-  );
+    final mediaUrl = result.mediaUrl.trim();
+    if (mediaUrl.isEmpty) {
+      debugPrint(
+        '[FirestoreWrite] skip video: empty mediaUrl '
+        'conversationId=${widget.conversationId}',
+      );
+      throw Exception('Cannot save video message without a download URL.');
+    }
 
-  await ref
-      .read(messageControllerProvider.notifier)
-      .sendMessage(message);
-}
+    final message = Message(
+      id: '',
+      conversationId: widget.conversationId,
+      senderId: widget.currentUserId,
+      messageType: 'video',
+      message: '',
+      mediaUrl: mediaUrl,
+      thumbnailUrl: result.thumbnailUrl,
+      fileName: null,
+      fileSize: null,
+      mimeType: 'video/mp4',
+      status: 'sent',
+      sentAt: DateTime.now(),
+      deliveredAt: null,
+      readAt: null,
+      replyToMessageId: null,
+      isEdited: false,
+      isDeleted: false,
+      deletedFor: const [],
+    );
 
-Future<void> _sendImageMessage(String imageUrl) async {
-  final message = Message(
-    id: '',
-    conversationId: widget.conversationId,
-    senderId: widget.currentUserId,
-    messageType: 'image',
-    message: '',
-    mediaUrl: imageUrl,
-    thumbnailUrl: null,
-    fileName: null,
-    fileSize: null,
-    mimeType: 'image/jpeg',
-    status: 'sent',
-    sentAt: DateTime.now(),
-    deliveredAt: null,
-    readAt: null,
-    replyToMessageId: null,
-    isEdited: false,
-    isDeleted: false,
-    deletedFor: const [],
-  );
+    try {
+      await ref.read(messageControllerProvider.notifier).sendMessage(message);
+    } catch (e, st) {
+      debugPrint('[FirestoreWrite] video message failed: $e\n$st');
+      rethrow;
+    }
+  }
 
-  await ref
-      .read(messageControllerProvider.notifier)
-      .sendMessage(message);
-}
+  Future<void> _sendImageMessage(String imageUrl) async {
+    final mediaUrl = imageUrl.trim();
+    if (mediaUrl.isEmpty) {
+      debugPrint(
+        '[FirestoreWrite] skip image: empty mediaUrl '
+        'conversationId=${widget.conversationId}',
+      );
+      throw Exception('Cannot save image message without a download URL.');
+    }
+
+    final message = Message(
+      id: '',
+      conversationId: widget.conversationId,
+      senderId: widget.currentUserId,
+      messageType: 'image',
+      message: '',
+      mediaUrl: mediaUrl,
+      thumbnailUrl: null,
+      fileName: null,
+      fileSize: null,
+      mimeType: 'image/jpeg',
+      status: 'sent',
+      sentAt: DateTime.now(),
+      deliveredAt: null,
+      readAt: null,
+      replyToMessageId: null,
+      isEdited: false,
+      isDeleted: false,
+      deletedFor: const [],
+    );
+
+    try {
+      await ref.read(messageControllerProvider.notifier).sendMessage(message);
+    } catch (e, st) {
+      debugPrint('[FirestoreWrite] image message failed: $e\n$st');
+      rethrow;
+    }
+  }
 
   Future<void> _sendFileMessage(FileUploadResult result) async {
+    final mediaUrl = result.mediaUrl.trim();
+    if (mediaUrl.isEmpty) {
+      debugPrint(
+        '[FirestoreWrite] skip file: empty mediaUrl '
+        'conversationId=${widget.conversationId}',
+      );
+      throw Exception('Cannot save file message without a download URL.');
+    }
+
     final message = Message(
       id: '',
       conversationId: widget.conversationId,
       senderId: widget.currentUserId,
       messageType: 'file',
       message: result.fileName,
-      mediaUrl: result.mediaUrl,
+      mediaUrl: mediaUrl,
       thumbnailUrl: null,
       fileName: result.fileName,
       fileSize: result.fileSize,
@@ -255,17 +453,31 @@ Future<void> _sendImageMessage(String imageUrl) async {
       deletedFor: const [],
     );
 
-    await ref.read(messageControllerProvider.notifier).sendMessage(message);
+    try {
+      await ref.read(messageControllerProvider.notifier).sendMessage(message);
+    } catch (e, st) {
+      debugPrint('[FirestoreWrite] file message failed: $e\n$st');
+      rethrow;
+    }
   }
 
   Future<void> _sendVoiceMessage(VoiceUploadResult result) async {
+    final mediaUrl = result.mediaUrl.trim();
+    if (mediaUrl.isEmpty) {
+      debugPrint(
+        '[FirestoreWrite] skip voice: empty mediaUrl '
+        'conversationId=${widget.conversationId}',
+      );
+      throw Exception('Cannot save voice message without a download URL.');
+    }
+
     final message = Message(
       id: '',
       conversationId: widget.conversationId,
       senderId: widget.currentUserId,
       messageType: 'voice',
       message: result.durationMs.toString(),
-      mediaUrl: result.mediaUrl,
+      mediaUrl: mediaUrl,
       thumbnailUrl: null,
       fileName: result.fileName,
       fileSize: result.fileSize,
@@ -280,10 +492,16 @@ Future<void> _sendImageMessage(String imageUrl) async {
       deletedFor: const [],
     );
 
-    await ref.read(messageControllerProvider.notifier).sendMessage(message);
+    try {
+      await ref.read(messageControllerProvider.notifier).sendMessage(message);
+    } catch (e, st) {
+      debugPrint('[FirestoreWrite] voice message failed: $e\n$st');
+      rethrow;
+    }
   }
 
   Future<void> _startVoiceCall() async {
+    if (!await _ensureNotBlocked()) return;
     final started =
         await ref.read(callControllerProvider.notifier).startOutgoingCall(
               conversationId: widget.conversationId,
@@ -315,6 +533,7 @@ Future<void> _sendImageMessage(String imageUrl) async {
   }
 
   Future<void> _startVideoCall() async {
+    if (!await _ensureNotBlocked()) return;
     final started =
         await ref.read(callControllerProvider.notifier).startOutgoingCall(
               conversationId: widget.conversationId,
@@ -385,6 +604,7 @@ Future<void> _sendImageMessage(String imageUrl) async {
             onBack: _onBackPressed,
             onVoiceCallPressed: _startVoiceCall,
             onVideoCallPressed: _startVideoCall,
+            onBlockPressed: _blockUser,
           );
         },
         loading: () => ChatAppBar(
@@ -396,6 +616,7 @@ Future<void> _sendImageMessage(String imageUrl) async {
           onBack: _onBackPressed,
           onVoiceCallPressed: _startVoiceCall,
           onVideoCallPressed: _startVideoCall,
+          onBlockPressed: _blockUser,
         ),
         error: (_, _) => ChatAppBar(
           userName: widget.userName,
@@ -406,69 +627,89 @@ Future<void> _sendImageMessage(String imageUrl) async {
           onBack: _onBackPressed,
           onVoiceCallPressed: _startVoiceCall,
           onVideoCallPressed: _startVideoCall,
+          onBlockPressed: _blockUser,
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: MessageList(
-              conversationId:
-                  widget.conversationId,
-              currentUserId:
-                  widget.currentUserId,
+      body: Builder(
+        builder: (context) {
+          final wallpaperPath = ref.watch(chatWallpaperPathProvider).valueOrNull;
+          final hasWallpaper = wallpaperPath != null &&
+              wallpaperPath.isNotEmpty &&
+              File(wallpaperPath).existsSync();
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              image: hasWallpaper
+                  ? DecorationImage(
+                      image: FileImage(File(wallpaperPath)),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-          ),
-
-          conversationAsync.when(
-            data: (conversation) {
-              final isTyping =
-                  conversation?.typingStatus[
-                          widget.otherUserId] ??
-                      false;
-
-              return TypingIndicator(
-                isTyping: isTyping,
-              );
-            },
-            loading: () =>
-                const SizedBox.shrink(),
-            error: (_, _) =>
-              const SizedBox.shrink(),
-          ),
-
-          MessageInput(
-           conversationId: widget.conversationId,
-           senderId: widget.currentUserId,
-            controller: _controller,
-
-            onChanged: (value) {
-              ref
-                  .read(
-                    typingControllerProvider
-                        .notifier,
-                  )
-                  .updateTypingStatus(
+            child: Column(
+              children: [
+                Expanded(
+                  child: MessageList(
                     conversationId:
                         widget.conversationId,
-                    userId:
+                    currentUserId:
                         widget.currentUserId,
-                    isTyping: value
-                        .trim()
-                        .isNotEmpty,
-                  );
-            },
+                  ),
+                ),
 
-            onSend: _sendMessage,
-            onImageSelected: _sendImageMessage,
-            onVideoSelected: _sendVideoMessage,
-            onFileSelected: _sendFileMessage,
-            onVoiceSelected: _sendVoiceMessage,
+                conversationAsync.when(
+                  data: (conversation) {
+                    final isTyping =
+                        conversation?.typingStatus[
+                                widget.otherUserId] ??
+                            false;
 
-            onVelixPressed: () {
-              // TODO
-            },
-          ),
-        ],
+                    return TypingIndicator(
+                      isTyping: isTyping,
+                    );
+                  },
+                  loading: () =>
+                      const SizedBox.shrink(),
+                  error: (_, _) =>
+                    const SizedBox.shrink(),
+                ),
+
+                MessageInput(
+                 conversationId: widget.conversationId,
+                 senderId: widget.currentUserId,
+                  controller: _controller,
+
+                  onChanged: (value) {
+                    ref
+                        .read(
+                          typingControllerProvider
+                              .notifier,
+                        )
+                        .updateTypingStatus(
+                          conversationId:
+                              widget.conversationId,
+                          userId:
+                              widget.currentUserId,
+                          isTyping: value
+                              .trim()
+                              .isNotEmpty,
+                        );
+                  },
+
+                  onSend: _sendMessage,
+                  onImageSelected: _sendImageMessage,
+                  onVideoSelected: _sendVideoMessage,
+                  onFileSelected: _sendFileMessage,
+                  onVoiceSelected: _sendVoiceMessage,
+
+                  onVelixPressed: () {
+                    // TODO
+                  },
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

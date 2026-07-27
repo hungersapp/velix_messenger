@@ -150,53 +150,78 @@ groupPhotoUrl: model.groupPhotoUrl,
   }
 
   @override
-Stream<List<Conversation>> getConversations(
-  String userId,
-) {
-  return remoteDataSource.getConversations(userId).map(
-    (models) => models
-        .map(
-          (model) => Conversation(
-            id: model.id,
-            conversationKey: model.conversationKey,
-            participants: model.participants,
-            lastMessage: model.lastMessage,
-            lastMessageSenderId: model.lastMessageSenderId,
-            lastMessageType: model.lastMessageType,
-            typingStatus: model.typingStatus,
-            createdAt: model.createdAt.toDate(),
-            updatedAt: model.updatedAt.toDate(),
-            lastMessageAt: model.lastMessageAt.toDate(),
-            unreadCount: model.unreadCount,
-            lastReadAt: model.lastReadAt.map(
-              (key, value) => MapEntry(
-                key,
-                value?.toDate(),
-              ),
-            ),
-            isGroup: model.isGroup,
-            groupName: model.groupName,
-            groupPhotoUrl: model.groupPhotoUrl,
-          ),
-        )
-        .toList(),
-  );
-}
+  Stream<List<Conversation>> getConversations(
+    String userId,
+  ) {
+    return remoteDataSource.getConversations(userId).map(
+          (models) => models.map(_mapConversation).toList(),
+        );
+  }
 
   @override
-Future<void> updateConversation({
-  required String conversationId,
-  required String lastMessage,
-  required String lastMessageSenderId,
-  required String lastMessageType,
-}) {
-  return remoteDataSource.updateConversation(
-    conversationId: conversationId,
-    lastMessage: lastMessage,
-    lastMessageSenderId: lastMessageSenderId,
-    lastMessageType: lastMessageType,
-  );
-}
+  Future<List<Conversation>> getOlderConversations({
+    required String userId,
+    required String beforeConversationId,
+    int limit = 30,
+  }) async {
+    final models = await remoteDataSource.getOlderConversations(
+      userId: userId,
+      beforeConversationId: beforeConversationId,
+      limit: limit,
+    );
+    return models.map(_mapConversation).toList();
+  }
+
+  Conversation _mapConversation(ConversationModel model) {
+    return Conversation(
+      id: model.id,
+      conversationKey: model.conversationKey,
+      participants: model.participants,
+      lastMessage: model.lastMessage,
+      lastMessageSenderId: model.lastMessageSenderId,
+      lastMessageType: model.lastMessageType,
+      typingStatus: model.typingStatus,
+      createdAt: model.createdAt.toDate(),
+      updatedAt: model.updatedAt.toDate(),
+      lastMessageAt: model.lastMessageAt.toDate(),
+      unreadCount: model.unreadCount,
+      lastReadAt: model.lastReadAt.map(
+        (key, value) => MapEntry(
+          key,
+          value?.toDate(),
+        ),
+      ),
+      isGroup: model.isGroup,
+      groupName: model.groupName,
+      groupPhotoUrl: model.groupPhotoUrl,
+    );
+  }
+
+  @override
+  Future<void> updateConversation({
+    required String conversationId,
+    required String lastMessage,
+    required String lastMessageSenderId,
+    required String lastMessageType,
+  }) {
+    return remoteDataSource.updateConversation(
+      conversationId: conversationId,
+      lastMessage: lastMessage,
+      lastMessageSenderId: lastMessageSenderId,
+      lastMessageType: lastMessageType,
+    );
+  }
+
+  @override
+  Future<void> clearConversationUnread({
+    required String conversationId,
+    required String userId,
+  }) {
+    return remoteDataSource.clearConversationUnread(
+      conversationId: conversationId,
+      userId: userId,
+    );
+  }
 
   @override
   Future<void> sendMessage(
@@ -243,31 +268,45 @@ Future<void> updateConversation({
     String conversationId,
   ) {
     return remoteDataSource.getMessages(conversationId).map(
-          (models) => models
-              .map(
-                (model) => Message(
-  id: model.id,
-  conversationId: model.conversationId,
-  senderId: model.senderId,
-  messageType: model.messageType,
-  message: model.message,
-  mediaUrl: model.mediaUrl,
-  thumbnailUrl: model.thumbnailUrl,
-  fileName: model.fileName,
-  fileSize: model.fileSize,
-  mimeType: model.mimeType,
-  status: model.status,
-  sentAt: model.sentAt.toDate(),
-  deliveredAt: model.deliveredAt?.toDate(),
-  readAt: model.readAt?.toDate(),
-  replyToMessageId: model.replyToMessageId,
-  isEdited: model.isEdited,
-  isDeleted: model.isDeleted,
-  deletedFor: model.deletedFor,
-)
-              )
-              .toList(),
+          (models) => models.map(_mapMessage).toList(),
         );
+  }
+
+  @override
+  Future<List<Message>> getOlderMessages({
+    required String conversationId,
+    required String beforeMessageId,
+    int limit = 50,
+  }) async {
+    final models = await remoteDataSource.getOlderMessages(
+      conversationId: conversationId,
+      beforeMessageId: beforeMessageId,
+      limit: limit,
+    );
+    return models.map(_mapMessage).toList();
+  }
+
+  Message _mapMessage(MessageModel model) {
+    return Message(
+      id: model.id,
+      conversationId: model.conversationId,
+      senderId: model.senderId,
+      messageType: model.messageType,
+      message: model.message,
+      mediaUrl: model.mediaUrl,
+      thumbnailUrl: model.thumbnailUrl,
+      fileName: model.fileName,
+      fileSize: model.fileSize,
+      mimeType: model.mimeType,
+      status: model.status,
+      sentAt: model.sentAt.toDate(),
+      deliveredAt: model.deliveredAt?.toDate(),
+      readAt: model.readAt?.toDate(),
+      replyToMessageId: model.replyToMessageId,
+      isEdited: model.isEdited,
+      isDeleted: model.isDeleted,
+      deletedFor: model.deletedFor,
+    );
   }
 
   @override

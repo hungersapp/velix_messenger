@@ -1,4 +1,4 @@
-package com.example.velix_messenger
+package app.velix.messenger
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine

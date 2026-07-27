@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 
+import '../widgets/chat_cached_image.dart';
+
 class ImageViewerScreen extends StatelessWidget {
   final String imageUrl;
   final String heroTag;
@@ -26,12 +28,19 @@ class ImageViewerScreen extends StatelessWidget {
         child: Hero(
           tag: heroTag,
           child: PhotoView(
-            imageProvider: NetworkImage(imageUrl),
+            imageProvider: ChatCachedImage.provider(imageUrl),
             minScale: PhotoViewComputedScale.contained,
             maxScale: PhotoViewComputedScale.covered * 3,
             loadingBuilder: (context, event) {
               return const Center(
-                child: CircularProgressIndicator(),
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: Colors.white,
+                  ),
+                ),
               );
             },
             errorBuilder: (context, error, stackTrace) {

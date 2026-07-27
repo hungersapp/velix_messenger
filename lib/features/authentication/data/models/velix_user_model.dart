@@ -22,6 +22,7 @@ class VelixUserModel extends VelixUser {
     required super.updatedAt,
   });
 
+  /// Public / profile document — must NEVER include auth secrets.
   Map<String, dynamic> toFirestore() {
     return {
       'uid': uid,
@@ -31,10 +32,7 @@ class VelixUserModel extends VelixUser {
       'username': username,
       'velixId': velixId,
       'velixIdLower': velixId.toLowerCase(),
-      'recoverySecurityKey': recoverySecurityKeyHash,
-      'passwordVault': passwordVault,
       'twoStepVerificationEnabled': twoStepVerificationEnabled,
-      'totpSecret': totpSecret,
       'photoUrl': photoUrl,
       'about': about,
       'status': status,
@@ -43,6 +41,26 @@ class VelixUserModel extends VelixUser {
       'storyPrivacy': storyPrivacy,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+
+  /// Owner-only security credentials subdocument.
+  Map<String, dynamic> toSecurityCredentials() {
+    return {
+      'recoverySecurityKey': recoverySecurityKeyHash,
+      'passwordVault': passwordVault,
+      'totpSecret': totpSecret,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  /// Pre-auth public lookup index (no secrets).
+  Map<String, dynamic> toLookupIndex() {
+    return {
+      'uid': uid,
+      'username': username,
+      'velixId': velixId,
+      'twoStepVerificationEnabled': twoStepVerificationEnabled,
     };
   }
 

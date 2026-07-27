@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../../core/firebase/firebase_error_guard.dart';
 import '../models/friend_model.dart';
 
 abstract class FriendsRemoteDataSource {
@@ -41,83 +42,89 @@ class FriendsRemoteDataSourceImpl implements FriendsRemoteDataSource {
   }
 
   @override
-  Future<List<FriendModel>> getFriends() async {
-    final snapshot = await _friendsOf(_currentUid).get();
-    if (snapshot.docs.isEmpty) return const [];
+  Future<List<FriendModel>> getFriends() {
+    return guardFirebase(() async {
+      final snapshot = await _friendsOf(_currentUid).get();
+      if (snapshot.docs.isEmpty) return const [];
 
-    final friends = await Future.wait(
-      snapshot.docs.map((doc) async {
-        final stored = FriendModel.fromFirestore(doc.data());
-        if (stored.uid.isEmpty) return stored;
+      final friends = await Future.wait(
+        snapshot.docs.map((doc) async {
+          final stored = FriendModel.fromFirestore(doc.data());
+          if (stored.uid.isEmpty) return stored;
 
-        final live = await _users.doc(stored.uid).get();
-        if (!live.exists || live.data() == null) {
-          return stored;
-        }
+          final live = await _users.doc(stored.uid).get();
+          if (!live.exists || live.data() == null) {
+            return stored;
+          }
 
-        final data = live.data()!;
-        return FriendModel(
-          uid: stored.uid,
-          displayName: data['displayName'] as String? ??
-              data['name'] as String? ??
-              stored.displayName,
-          velixId: data['velixId'] as String? ?? stored.velixId,
-          photoUrl: data['photoUrl'] as String? ?? stored.photoUrl,
-          createdAt: stored.createdAt,
-          isOnline: data['isOnline'] as bool? ?? false,
-        );
-      }),
-    );
+          final data = live.data()!;
+          return FriendModel(
+            uid: stored.uid,
+            displayName: data['displayName'] as String? ??
+                data['name'] as String? ??
+                stored.displayName,
+            velixId: data['velixId'] as String? ?? stored.velixId,
+            photoUrl: data['photoUrl'] as String? ?? stored.photoUrl,
+            createdAt: stored.createdAt,
+            isOnline: data['isOnline'] as bool? ?? false,
+          );
+        }),
+      );
 
-    friends.sort(
-      (a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
-    );
-    return friends;
+      friends.sort(
+        (a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
+      );
+      return friends;
+    });
   }
 
   @override
-  Future<bool> isFriend(String friendUid) async {
-    if (friendUid.isEmpty) return false;
-    final doc = await _friendsOf(_currentUid).doc(friendUid).get();
-    return doc.exists;
+  Future<bool> isFriend(String friendUid) {
+    return guardFirebase(() async {
+      if (friendUid.isEmpty) return false;
+      final doc = await _friendsOf(_currentUid).doc(friendUid).get();
+      return doc.exists;
+    });
   }
 
   @override
   Future<void> addFriend({
     required FriendModel friend,
     required FriendModel selfProfile,
-  }) async {
-    final currentUid = _currentUid;
+  }) {
+    return guardFirebase(() async {
+      final currentUid = _currentUid;
 
-    if (friend.uid.isEmpty || friend.uid == currentUid) {
-      throw Exception('Cannot add yourself as a friend.');
-    }
+      if (friend.uid.isEmpty || friend.uid == currentUid) {
+        throw Exception('Cannot add yourself as a friend.');
+      }
 
-    final existing = await _friendsOf(currentUid).doc(friend.uid).get();
-    if (existing.exists) {
-      return;
-    }
+      final existing = await _friendsOf(currentUid).doc(friend.uid).get();
+      if (existing.exists) {
+        return;
+      }
 
-    final now = Timestamp.now();
-    final batch = _firestore.batch();
+      final now = Timestamp.now();
+      final batch = _firestore.batch();
 
-    batch.set(
-      _friendsOf(currentUid).doc(friend.uid),
-      {
-        ...friend.toFirestore(),
-        'createdAt': now,
-      },
-    );
+      batch.set(
+        _friendsOf(currentUid).doc(friend.uid),
+        {
+          ...friend.toFirestore(),
+          'createdAt': now,
+        },
+      );
 
-    batch.set(
-      _friendsOf(friend.uid).doc(currentUid),
-      {
-        ...selfProfile.toFirestore(),
-        'uid': currentUid,
-        'createdAt': now,
-      },
-    );
+      batch.set(
+        _friendsOf(friend.uid).doc(currentUid),
+        {
+          ...selfProfile.toFirestore(),
+          'uid': currentUid,
+          'createdAt': now,
+        },
+      );
 
-    await batch.commit();
+      await batch.commit();
+    });
   }
 }

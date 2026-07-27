@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +8,7 @@ void navLog(
   String event, [
   Map<String, Object?>? data,
 ]) {
+  if (!kDebugMode) return;
   final buffer = StringBuffer('[VELIX_NAV][$screen] $event');
   if (data != null && data.isNotEmpty) {
     buffer.write(' | ');

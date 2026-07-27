@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../../core/firebase/firebase_error_guard.dart';
 import '../../../../core/services/firebase_storage_service.dart';
 import 'time_capsule_storage_datasource.dart';
 
@@ -38,6 +39,10 @@ class TimeCapsuleStorageDataSourceImpl
       path: storagePath,
       file: file,
       contentType: contentType,
+      metadata: SettableMetadata(
+        contentType: contentType,
+        customMetadata: {'uploaderId': ownerId},
+      ),
     );
   }
 
@@ -55,6 +60,10 @@ class TimeCapsuleStorageDataSourceImpl
       path: storagePath,
       file: file,
       contentType: 'image/jpeg',
+      metadata: SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {'uploaderId': ownerId},
+      ),
     );
   }
 
@@ -80,7 +89,7 @@ class TimeCapsuleStorageDataSourceImpl
       if (e.code == 'object-not-found' || e.code == 'invalid-argument') {
         return;
       }
-      rethrow;
+      throw Exception(mapFirebaseExceptionMessage(e));
     } catch (_) {
       // Non-fatal for orphaned/invalid URLs.
     }
@@ -94,7 +103,7 @@ class TimeCapsuleStorageDataSourceImpl
           await item.delete();
         } on FirebaseException catch (e) {
           if (e.code != 'object-not-found') {
-            rethrow;
+            throw Exception(mapFirebaseExceptionMessage(e));
           }
         }
       }
@@ -105,7 +114,7 @@ class TimeCapsuleStorageDataSourceImpl
       if (e.code == 'object-not-found') {
         return;
       }
-      rethrow;
+      throw Exception(mapFirebaseExceptionMessage(e));
     }
   }
 }

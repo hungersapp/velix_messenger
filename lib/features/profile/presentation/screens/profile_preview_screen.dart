@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/app_routes.dart';
 import '../../../chat/presentation/providers/conversation_provider.dart';
 import '../../../contacts/presentation/providers/contacts_provider.dart';
+import '../../../settings/domain/entities/settings_models.dart';
+import '../../../settings/presentation/utils/privacy_visibility_helper.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../../domain/entities/velix_public_profile.dart';
 import '../../domain/exceptions/velix_qr_exceptions.dart';
@@ -36,8 +38,24 @@ class _ProfilePreviewScreenState extends ConsumerState<ProfilePreviewScreen> {
     final handle = VelixQrPayload.displayHandle(widget.profile.velixId);
     final width = MediaQuery.sizeOf(context).width;
     final horizontalPadding = width >= 600 ? 48.0 : 24.0;
+    final viewerId = ref.watch(currentUserProvider).valueOrNull?.uid ?? '';
 
-    return Scaffold(
+    return FutureBuilder<bool>(
+      future: canViewerSeePrivacyField(
+        ref: ref,
+        ownerId: widget.profile.uid,
+        viewerId: viewerId,
+        visibility: PrivacyVisibility.fromStorage(
+          widget.profile.profilePhotoPrivacy,
+        ),
+      ),
+      builder: (context, snapshot) {
+        final canSeePhoto = snapshot.data ?? true;
+        final photoUrl = canSeePhoto && widget.profile.photoUrl.isNotEmpty
+            ? widget.profile.photoUrl
+            : null;
+
+        return Scaffold(
       appBar: AppBar(
         title: const Text('Profile Preview'),
         leading: IconButton(
@@ -63,9 +81,7 @@ class _ProfilePreviewScreenState extends ConsumerState<ProfilePreviewScreen> {
                   children: [
                     ProfileAvatar(
                       displayName: widget.profile.displayName,
-                      photoUrl: widget.profile.photoUrl.isEmpty
-                          ? null
-                          : widget.profile.photoUrl,
+                      photoUrl: photoUrl,
                       size: 112,
                     ),
                     const SizedBox(height: 24),
@@ -115,6 +131,8 @@ class _ProfilePreviewScreenState extends ConsumerState<ProfilePreviewScreen> {
         ),
       ),
     );
+      },
+    );
   }
 
   Future<void> _onConnect() async {
@@ -136,7 +154,7 @@ class _ProfilePreviewScreenState extends ConsumerState<ProfilePreviewScreen> {
       ref.invalidate(friendsProvider);
       ref.invalidate(contactsProvider);
       ref.invalidate(syncContactsUseCaseProvider);
-      ref.invalidate(conversationProvider(currentUser.uid));
+      ref.invalidate(chatConversationsProvider(currentUser.uid));
 
       if (!mounted) return;
       context.go(AppRoutes.home);

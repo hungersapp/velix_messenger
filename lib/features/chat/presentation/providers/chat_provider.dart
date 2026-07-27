@@ -6,10 +6,13 @@ import '../../data/datasources/chat_remote_datasource_impl.dart';
 import '../../data/repositories/chat_repository_impl.dart';
 import '../../domain/repositories/chat_repository.dart';
 import '../../domain/usecases/create_conversation_usecase.dart';
+import '../../domain/usecases/clear_conversation_unread_usecase.dart';
 import '../../domain/usecases/get_conversation_by_id_usecase.dart';
 import '../../domain/usecases/get_conversation_by_key_usecase.dart';
 import '../../domain/usecases/get_conversations_usecase.dart';
+import '../../domain/usecases/get_older_conversations_usecase.dart';
 import '../../domain/usecases/get_messages_usecase.dart';
+import '../../domain/usecases/get_older_messages_usecase.dart';
 import '../../domain/usecases/open_chat_usecase.dart';
 import '../../domain/usecases/send_message_usecase.dart';
 import '../../domain/usecases/update_conversation_usecase.dart';
@@ -90,10 +93,26 @@ final getConversationsUseCaseProvider =
   ),
 );
 
+/// Get Older Conversations (cursor pagination)
+final getOlderConversationsUseCaseProvider =
+    Provider<GetOlderConversationsUseCase>(
+  (ref) => GetOlderConversationsUseCase(
+    repository: ref.watch(chatRepositoryProvider),
+  ),
+);
+
 /// Get Messages
 final getMessagesUseCaseProvider =
     Provider<GetMessagesUseCase>(
   (ref) => GetMessagesUseCase(
+    repository: ref.watch(chatRepositoryProvider),
+  ),
+);
+
+/// Get Older Messages (cursor pagination)
+final getOlderMessagesUseCaseProvider =
+    Provider<GetOlderMessagesUseCase>(
+  (ref) => GetOlderMessagesUseCase(
     repository: ref.watch(chatRepositoryProvider),
   ),
 );
@@ -110,6 +129,14 @@ final sendMessageUseCaseProvider =
 final updateConversationUseCaseProvider =
     Provider<UpdateConversationUseCase>(
   (ref) => UpdateConversationUseCase(
+    repository: ref.watch(chatRepositoryProvider),
+  ),
+);
+
+/// Clear conversation unread badge (summary field only)
+final clearConversationUnreadUseCaseProvider =
+    Provider<ClearConversationUnreadUseCase>(
+  (ref) => ClearConversationUnreadUseCase(
     repository: ref.watch(chatRepositoryProvider),
   ),
 );

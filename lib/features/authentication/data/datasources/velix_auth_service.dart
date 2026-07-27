@@ -1,5 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../../core/security/secure_storage_service.dart';
+import '../../../../core/security/session_security_gate.dart';
+
 /// Firebase Auth operations for Velix ID + password accounts.
 class VelixAuthService {
   VelixAuthService({FirebaseAuth? firebaseAuth})
@@ -8,6 +11,13 @@ class VelixAuthService {
   final FirebaseAuth _firebaseAuth;
 
   User? get currentUser => _firebaseAuth.currentUser;
+
+  /// Waits until Firebase Auth has restored any persisted session.
+  ///
+  /// Emits the current user (or `null` if signed out) once Auth is ready.
+  Future<User?> waitForRestoredSession() {
+    return _firebaseAuth.authStateChanges().first;
+  }
 
   /// Synthetic email used as the Firebase Auth identifier for a Velix ID.
   static String authEmailForVelixId(String velixId) {
@@ -46,7 +56,13 @@ class VelixAuthService {
     await user.updatePassword(newPassword);
   }
 
-  Future<void> signOut() => _firebaseAuth.signOut();
+  Future<void> signOut() async {
+    SessionSecurityGate.clear();
+    try {
+      await SecureStorageService().clearSessionBound();
+    } catch (_) {}
+    await _firebaseAuth.signOut();
+  }
 
   Future<void> deleteCurrentUser() async {
     final user = _firebaseAuth.currentUser;

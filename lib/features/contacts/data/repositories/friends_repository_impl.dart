@@ -1,3 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../../../core/firebase/firebase_error_guard.dart';
 import '../../domain/entities/discoverable_user_entity.dart';
 import '../../domain/entities/friend_entity.dart';
 import '../../domain/entities/friend_request_entity.dart';
@@ -165,8 +169,16 @@ class FriendsRepositoryImpl implements FriendsRepository {
   }
 
   @override
-  Future<Set<String>> getBlockedUserIds() async {
-    // Future support — block list not implemented yet.
-    return const <String>{};
+  Future<Set<String>> getBlockedUserIds() {
+    return guardFirebase(() async {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return const {};
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('blocked')
+          .get();
+      return snap.docs.map((d) => d.id).toSet();
+    });
   }
 }

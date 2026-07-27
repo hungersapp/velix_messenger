@@ -1,0 +1,250 @@
+rules_version = '2';
+
+/**
+ * Velix Messenger — Firebase Storage Security Rules (Phase 2)
+ *
+ * Paths used by the Flutter client:
+ *   users/{uid}/profile_*.jpg
+ *   chat_media/{conversationId}/images|videos|video_thumbnails|files/{file}
+ *   time_capsule/{ownerId}/{storyId}/...
+ *
+ * Requires Firestore rules that protect conversations/{id}.participants.
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── Helpers ───────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function contentType() {
+      return request.resource.contentType;
+    }
+
+    function isImage() {
+      return contentType().matches('image/.*');
+    }
+
+    function isVideo() {
+      return contentType().matches('video/.*');
+    }
+
+    function isAudio() {
+      return contentType().matches('audio/.*');
+    }
+
+    /** Dangerous / executable content types. */
+    function isExecutableContentType() {
+      return contentType() in [
+        'application/x-msdownload',
+        'application/x-msdos-program',
+        'application/x-executable',
+        'application/x-sharedlib',
+        'application/x-sh',
+        'application/x-bat',
+        'application/javascript',
+        'application/x-javascript',
+        'text/javascript',
+        'application/vnd.android.package-archive',
+        'application/x-apple-diskimage',
+        'application/wasm'
+      ];
+    }
+
+    function hasDangerousExtension(fileName) {
+      return fileName.matches('(?i).*\\.(exe|bat|cmd|com|msi|scr|ps1|vbs|js|jar|apk|dmg|sh|bash|cgi|php|phtml|asp|aspx)$');
+    }
+
+    function isSafeMediaType() {
+      return (isImage() || isVideo() || isAudio())
+        && !isExecutableContentType();
+    }
+
+    /**
+     * Chat "files/" also carries voice (audio) and non-executable documents
+     * used by the current Flutter picker — still rejects executables / octet-stream.
+     */
+    function isSafeChatFileType() {
+      return !isExecutableContentType()
+        && (
+          isAudio()
+          || isImage()
+          || contentType() in [
+            'application/pdf',
+            'text/plain',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/zip'
+          ]
+        );
+    }
+
+    function underSize(maxBytes) {
+      return request.resource.size > 0
+        && request.resource.size <= maxBytes;
+    }
+
+    function uploaderIsAuthUser() {
+      return request.resource.metadata != null
+        && request.resource.metadata.keys().hasAny(['uploaderId'])
+        && request.resource.metadata['uploaderId'] == request.auth.uid;
+    }
+
+    function conversationExists(conversationId) {
+      return firestore.exists(
+        /databases/(default)/documents/conversations/$(conversationId)
+      );
+    }
+
+    // Single Firestore read (exists+get on same doc shares cache; get alone is enough).
+    function isConversationParticipant(conversationId) {
+      return isSignedIn()
+        && conversationId is string
+        && conversationId.size() > 0
+        && conversationExists(conversationId)
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participants;
+    }
+
+    // Size budgets (aligned with app limits where known).
+    function profileSizeOk() {
+      return underSize(5 * 1024 * 1024);
+    }
+
+    function imageSizeOk() {
+      return underSize(15 * 1024 * 1024);
+    }
+
+    function videoSizeOk() {
+      return underSize(100 * 1024 * 1024);
+    }
+
+    function audioOrDocSizeOk() {
+      return underSize(25 * 1024 * 1024);
+    }
+
+    function thumbSizeOk() {
+      return underSize(5 * 1024 * 1024);
+    }
+
+    // ─── Profile photos: users/{uid}/profile_* ─────────────────────────────
+    // Storage rules cannot bind a path prefix inside a segment (profile_{x}).
+
+    match /users/{userId}/{fileName} {
+      allow read: if isSignedIn()
+        && fileName.matches('profile_.*');
+
+      allow create, update: if isOwner(userId)
+        && fileName.matches('profile_.*')
+        && isImage()
+        && !isExecutableContentType()
+        && !hasDangerousExtension(fileName)
+        && profileSizeOk();
+
+      allow delete: if isOwner(userId)
+        && fileName.matches('profile_.*');
+    }
+
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isSignedIn();
+
+      allow create, update: if isOwner(userId)
+        && isImage()
+        && !isExecutableContentType()
+        && !hasDangerousExtension(fileName)
+        && profileSizeOk();
+
+      allow delete: if isOwner(userId);
+    }
+
+    // ─── Chat media ────────────────────────────────────────────────────────
+    // Deleted conversations: conversationExists() fails → upload denied.
+
+    match /chat_media/{conversationId}/images/{fileName} {
+      allow read: if isConversationParticipant(conversationId);
+
+      allow create: if isConversationParticipant(conversationId)
+        && uploaderIsAuthUser()
+        && isImage()
+        && !isExecutableContentType()
+        && !hasDangerousExtension(fileName)
+        && imageSizeOk();
+
+      // Prevent overwriting another participant's object.
+      allow update: if false;
+      allow delete: if isConversationParticipant(conversationId);
+    }
+
+    match /chat_media/{conversationId}/videos/{fileName} {
+      allow read: if isConversationParticipant(conversationId);
+
+      allow create: if isConversationParticipant(conversationId)
+        && uploaderIsAuthUser()
+        && isVideo()
+        && !isExecutableContentType()
+        && !hasDangerousExtension(fileName)
+        && videoSizeOk();
+
+      allow update: if false;
+      allow delete: if isConversationParticipant(conversationId);
+    }
+
+    match /chat_media/{conversationId}/video_thumbnails/{fileName} {
+      allow read: if isConversationParticipant(conversationId);
+
+      allow create: if isConversationParticipant(conversationId)
+        && uploaderIsAuthUser()
+        && isImage()
+        && !isExecutableContentType()
+        && !hasDangerousExtension(fileName)
+        && thumbSizeOk();
+
+      allow update: if false;
+      allow delete: if isConversationParticipant(conversationId);
+    }
+
+    // Voice messages + documents (current Flutter uses this folder for both).
+    match /chat_media/{conversationId}/files/{fileName} {
+      allow read: if isConversationParticipant(conversationId);
+
+      allow create: if isConversationParticipant(conversationId)
+        && uploaderIsAuthUser()
+        && isSafeChatFileType()
+        && !hasDangerousExtension(fileName)
+        && audioOrDocSizeOk();
+
+      allow update: if false;
+      allow delete: if isConversationParticipant(conversationId);
+    }
+
+    // ─── Time capsules (existing feature; owner-only write) ────────────────
+    // Recursive match so listAll(time_capsule/{owner}/{story}) works for deletes.
+
+    match /time_capsule/{ownerId}/{storyId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow delete: if isOwner(ownerId);
+
+      allow create, update: if isOwner(ownerId)
+        && isSafeMediaType()
+        && !hasDangerousExtension(allPaths)
+        && (
+          (allPaths.matches('videos/.*') && isVideo() && videoSizeOk())
+          || (allPaths.matches('images/.*') && isImage() && imageSizeOk())
+          || (allPaths.matches('thumbnails/.*') && isImage() && thumbSizeOk())
+        );
+    }
+
+    // Default deny — no other top-level folders are writable.
+  }
+}

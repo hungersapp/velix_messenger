@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../user/domain/entities/user_entity.dart';
@@ -99,7 +100,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   ImageProvider? _buildProfileImage() {
     if (user == null) return null;
     if (user!.photoUrl.trim().isEmpty) return null;
-    return NetworkImage(user!.photoUrl);
+    return CachedNetworkImageProvider(user!.photoUrl);
   }
 
   String _initials(String? name) {

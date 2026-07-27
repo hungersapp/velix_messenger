@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../../core/firebase/firebase_error_guard.dart';
 import '../models/user_model.dart';
 
 class FirestoreUserDatasource {
@@ -8,45 +9,53 @@ class FirestoreUserDatasource {
   static const String _collection = 'users';
 
   /// Save User
-  Future<void> saveUser(UserModel user) async {
-    await _firestore
-        .collection(_collection)
-        .doc(user.uid)
-        .set(user.toMap());
+  Future<void> saveUser(UserModel user) {
+    return guardFirebase(() async {
+      await _firestore
+          .collection(_collection)
+          .doc(user.uid)
+          .set(user.toMap());
+    });
   }
 
   /// Check User Exists
-  Future<bool> userExists(String uid) async {
-    final doc = await _firestore
-        .collection(_collection)
-        .doc(uid)
-        .get();
+  Future<bool> userExists(String uid) {
+    return guardFirebase(() async {
+      final doc = await _firestore
+          .collection(_collection)
+          .doc(uid)
+          .get();
 
-    return doc.exists;
+      return doc.exists;
+    });
   }
 
   /// Get User
-  Future<UserModel?> getUser(String uid) async {
-    final doc = await _firestore
-        .collection(_collection)
-        .doc(uid)
-        .get();
+  Future<UserModel?> getUser(String uid) {
+    return guardFirebase(() async {
+      final doc = await _firestore
+          .collection(_collection)
+          .doc(uid)
+          .get();
 
-    if (!doc.exists) {
-      return null;
-    }
+      if (!doc.exists) {
+        return null;
+      }
 
-    return UserModel.fromMap(doc.data()!);
+      return UserModel.fromMap(doc.data()!);
+    });
   }
 
   /// Check Mobile Number Exists
-  Future<bool> isMobileExists(String mobile) async {
-    final query = await _firestore
-        .collection(_collection)
-        .where('mobile', isEqualTo: mobile)
-        .limit(1)
-        .get();
+  Future<bool> isMobileExists(String mobile) {
+    return guardFirebase(() async {
+      final query = await _firestore
+          .collection(_collection)
+          .where('mobile', isEqualTo: mobile)
+          .limit(1)
+          .get();
 
-    return query.docs.isNotEmpty;
+      return query.docs.isNotEmpty;
+    });
   }
 }

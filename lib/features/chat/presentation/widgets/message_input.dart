@@ -241,6 +241,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           );
 
       try {
+        debugPrint(
+          '[MediaFlow] voice upload start conversationId=${widget.conversationId} '
+          'senderId=${widget.senderId} file=$fileName',
+        );
         final downloadUrl =
             await ref.read(mediaControllerProvider.notifier).uploadFile(
                   conversationId: widget.conversationId,
@@ -249,6 +253,13 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   fileName: fileName,
                 );
 
+        if (downloadUrl.trim().isEmpty) {
+          throw Exception(
+            'Voice upload returned empty download URL; skipping Firestore write.',
+          );
+        }
+
+        debugPrint('[MediaFlow] voice upload ok url=$downloadUrl');
         if (widget.onVoiceSelected != null) {
           await widget.onVoiceSelected!(
             VoiceUploadResult(
@@ -259,6 +270,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               durationMs: durationMs,
             ),
           );
+          debugPrint('[MediaFlow] voice Firestore write requested');
         }
       } catch (e, st) {
         debugPrint('Voice upload/send failed: $e\n$st');
@@ -314,12 +326,22 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         );
 
     try {
+      debugPrint(
+        '[MediaFlow] image upload start conversationId=${widget.conversationId} '
+        'senderId=${widget.senderId}',
+      );
       final imageUrl =
           await ref.read(mediaControllerProvider.notifier).uploadImage(
                 conversationId: widget.conversationId,
                 senderId: widget.senderId,
                 filePath: uploadFile.path,
               );
+
+      if (imageUrl.trim().isEmpty) {
+        throw Exception(
+          'Image upload returned empty download URL; skipping Firestore write.',
+        );
+      }
 
       if (widget.onImageSelected != null) {
         debugPrint('3. Upload completed: $imageUrl');
@@ -335,9 +357,14 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   Future<void> _pickImage() async {
-    final File? image = await _picker.pickImageFromGallery();
-    if (image == null) return;
-    await _uploadAndSendImage(image);
+    try {
+      final File? image = await _picker.pickImageFromGallery();
+      if (image == null) return;
+      await _uploadAndSendImage(image);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('$e');
+    }
   }
 
   Future<void> _captureFromCamera() async {
@@ -345,20 +372,28 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       final allowed = await _ensureCameraPermission();
       if (!allowed) return;
 
-      final File? captured = await _picker.pickImageFromCamera();
+      final File? captured;
+      try {
+        captured = await _picker.pickImageFromCamera();
+      } catch (e) {
+        if (!mounted) return;
+        _showSnackBar('$e');
+        return;
+      }
       if (captured == null) return;
+      final imageFile = captured;
 
       if (!mounted) return;
       final action = await Navigator.of(context).push<CameraCapturePreviewAction>(
         MaterialPageRoute(
-          builder: (_) => CameraCapturePreviewScreen(imageFile: captured),
+          builder: (_) => CameraCapturePreviewScreen(imageFile: imageFile),
           fullscreenDialog: true,
         ),
       );
 
       switch (action) {
         case CameraCapturePreviewAction.send:
-          await _uploadAndSendImage(captured);
+          await _uploadAndSendImage(imageFile);
           return;
         case CameraCapturePreviewAction.retake:
           continue;
@@ -370,7 +405,14 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   Future<void> _pickVideo() async {
-    final File? video = await _picker.pickVideo();
+    final File? video;
+    try {
+      video = await _picker.pickVideo();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('$e');
+      return;
+    }
 
     if (video == null) return;
 
@@ -393,6 +435,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         );
 
     try {
+      debugPrint(
+        '[MediaFlow] video upload start conversationId=${widget.conversationId} '
+        'senderId=${widget.senderId}',
+      );
       final result =
           await ref.read(mediaControllerProvider.notifier).uploadVideo(
                 conversationId: widget.conversationId,
@@ -403,6 +449,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       debugPrint('Video URL: ${result.mediaUrl}');
       debugPrint('Thumbnail: ${result.thumbnailUrl}');
 
+      if (result.mediaUrl.trim().isEmpty) {
+        throw Exception(
+          'Video upload returned empty download URL; skipping Firestore write.',
+        );
+      }
+
       if (widget.onVideoSelected != null) {
         await widget.onVideoSelected!(result);
       }
@@ -410,13 +462,23 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       debugPrint('3. Video message created');
     } catch (e, st) {
       debugPrint('Video upload/send failed: $e\n$st');
+      if (mounted) {
+        _showSnackBar('Failed to upload video. Please try again.');
+      }
     } finally {
       ref.read(pendingMediaProvider.notifier).remove(pendingId);
     }
   }
 
   Future<void> _pickDocument() async {
-    final document = await _picker.pickDocument();
+    final PickedDocument? document;
+    try {
+      document = await _picker.pickDocument();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('$e');
+      return;
+    }
     if (document == null) return;
 
     if (document.fileSize > MediaPickerService.maxDocumentBytes) {
@@ -441,6 +503,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         );
 
     try {
+      debugPrint(
+        '[MediaFlow] document upload start conversationId=${widget.conversationId} '
+        'senderId=${widget.senderId} file=$storageFileName',
+      );
       final downloadUrl =
           await ref.read(mediaControllerProvider.notifier).uploadFile(
                 conversationId: widget.conversationId,
@@ -448,6 +514,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 filePath: document.file.path,
                 fileName: storageFileName,
               );
+
+      if (downloadUrl.trim().isEmpty) {
+        throw Exception(
+          'Document upload returned empty download URL; skipping Firestore write.',
+        );
+      }
 
       if (widget.onFileSelected != null) {
         await widget.onFileSelected!(
@@ -458,6 +530,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             mimeType: document.mimeType,
           ),
         );
+        debugPrint('[MediaFlow] document Firestore write requested');
       }
     } catch (e, st) {
       debugPrint('Document upload/send failed: $e\n$st');

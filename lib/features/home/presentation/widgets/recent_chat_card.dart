@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class RecentChatCard extends StatelessWidget {
@@ -44,7 +45,7 @@ class RecentChatCard extends StatelessWidget {
                     radius: 30,
                     backgroundColor: const Color(0xFFF3F4F6),
                     backgroundImage: profileImageUrl != null
-                        ? NetworkImage(profileImageUrl!)
+                        ? CachedNetworkImageProvider(profileImageUrl!)
                         : null,
                     child: profileImageUrl == null
                         ? const Icon(

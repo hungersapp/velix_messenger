@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/app_routes.dart';
+import '../../../../core/security/secure_storage_providers.dart';
+import '../../../../core/security/session_security_gate.dart';
+import '../../../settings/presentation/providers/settings_feature_providers.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../providers/auth_provider.dart';
 
@@ -59,7 +62,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     ref.invalidate(currentUserProvider);
+    await ref.read(currentUserProvider.notifier).refreshUser();
+    final user = ref.read(currentUserProvider).valueOrNull;
+
+    if (!mounted) return;
+
+    if (user != null) {
+      final enabled = await ref
+          .read(settingsRepositoryProvider)
+          .isTwoFactorEnabled(user.uid);
+      final secure = ref.read(secureStorageServiceProvider);
+      await secure.setTotpEnabled(enabled);
+      if (enabled) {
+        final otp = await _promptTotp();
+        if (otp == null || otp.isEmpty) {
+          await ref.read(authRepositoryProvider).signOut();
+          return;
+        }
+        final ok =
+            await ref.read(settingsRepositoryProvider).verifyLoginTotp(otp);
+        if (!ok) {
+          await ref.read(authRepositoryProvider).signOut();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invalid authenticator code')),
+          );
+          return;
+        }
+      }
+      await secure.setAuthSession(uid: user.uid);
+    }
+
+    SessionSecurityGate.markSecondFactorVerified();
+
+    if (!mounted) return;
     context.go(AppRoutes.home);
+  }
+
+  Future<String?> _promptTotp() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Two-Factor Authentication'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Authenticator code',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Verify'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result;
   }
 
   String _errorText(Object? error) {

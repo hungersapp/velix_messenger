@@ -1,23 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../l10n/profile_localizations.dart';
+import '../../../../app/app_routes.dart';
+import '../../../authentication/presentation/providers/auth_provider.dart';
+import '../../../settings/presentation/screens/settings_screen.dart';
+import '../../../user/presentation/providers/current_user_provider.dart';
 import '../providers/my_profile_provider.dart';
 import '../widgets/profile_action_tile.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/qr_identity_card.dart';
 import '../widgets/velix_id_card.dart';
 import 'my_velix_qr_screen.dart';
+import 'profile_details_screen.dart';
 
 class MyProfileScreen extends ConsumerWidget {
   const MyProfileScreen({super.key});
+
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    await ref.read(authRepositoryProvider).signOut();
+    ref.invalidate(currentUserProvider);
+    if (!context.mounted) return;
+    context.go(AppRoutes.login);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final identityAsync = ref.watch(myProfileProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final l10n = ProfileLocalizations.of(context);
     final width = MediaQuery.sizeOf(context).width;
     final horizontalPadding = width >= 600 ? 48.0 : 24.0;
 
@@ -95,15 +106,6 @@ class MyProfileScreen extends ConsumerWidget {
                           child: QrIdentityCard(velixId: identity.handle),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        l10n.slogan,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
                       const SizedBox(height: 28),
                       VelixIdCard(identity: identity),
                       const SizedBox(height: 16),
@@ -111,26 +113,28 @@ class MyProfileScreen extends ConsumerWidget {
                         title: 'Profile Details',
                         icon: Icons.person_outline_rounded,
                         onTap: () {
-                          // TODO: Profile Details screen
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const ProfileDetailsScreen(),
+                            ),
+                          );
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 4),
                       ProfileActionTile(
-                        title: 'My Velix QR',
-                        icon: Icons.qr_code_2_rounded,
+                        title: 'Settings',
+                        icon: Icons.settings_outlined,
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const MyVelixQrScreen(),
+                              builder: (_) => const SettingsScreen(),
                             ),
                           );
                         },
                       ),
                       const SizedBox(height: 24),
                       OutlinedButton(
-                        onPressed: () {
-                          // TODO: Logout
-                        },
+                        onPressed: () => _logout(context, ref),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 54),
                           foregroundColor: colorScheme.error,

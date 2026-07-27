@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../profile/domain/services/velix_qr_payload.dart';
@@ -37,8 +38,9 @@ class FriendTile extends StatelessWidget {
                   CircleAvatar(
                     radius: 28,
                     backgroundColor: theme.colorScheme.primaryContainer,
-                    backgroundImage:
-                        hasPhoto ? NetworkImage(friend.photoUrl) : null,
+                    backgroundImage: hasPhoto
+                        ? CachedNetworkImageProvider(friend.photoUrl)
+                        : null,
                     child: hasPhoto
                         ? null
                         : Text(

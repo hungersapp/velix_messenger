@@ -10,12 +10,40 @@ import '../services/time_capsule_media_service.dart';
 import '../utils/story_time_formatter.dart';
 import '../../domain/entities/story_owner_bucket.dart';
 
-class TimeCapsuleRail extends ConsumerWidget {
+class TimeCapsuleRail extends ConsumerStatefulWidget {
   const TimeCapsuleRail({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TimeCapsuleRail> createState() => _TimeCapsuleRailState();
+}
+
+class _TimeCapsuleRailState extends ConsumerState<TimeCapsuleRail> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - 120) return;
+    ref.read(activeStoriesControllerProvider.notifier).loadOlder();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final bucketsAsync = ref.watch(storyBucketsProvider);
+    final storiesState = ref.watch(activeStoriesControllerProvider);
     final currentUser = ref.watch(currentUserProvider).value;
     final uploadState = ref.watch(storyUploadControllerProvider);
 
@@ -92,6 +120,7 @@ class TimeCapsuleRail extends ConsumerWidget {
                   : const <StoryOwnerBucket>[];
 
               return ListView(
+                controller: _scrollController,
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
@@ -141,6 +170,17 @@ class TimeCapsuleRail extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (storiesState.isLoadingOlder)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
                 ],
               );
             },

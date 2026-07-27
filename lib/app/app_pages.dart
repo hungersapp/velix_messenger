@@ -1,6 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/debug/nav_debug_log.dart';
+import '../core/security/go_router_auth_refresh.dart';
+import '../core/security/session_security_gate.dart';
 import '../features/authentication/presentation/models/account_created_args.dart';
 import '../features/authentication/presentation/screens/account_created_screen.dart';
 import '../features/authentication/presentation/screens/forgot_password_screen.dart';
@@ -15,6 +19,7 @@ import '../features/profile/domain/entities/velix_public_profile.dart';
 import '../features/profile/presentation/screens/my_profile_screen.dart';
 import '../features/profile/presentation/screens/profile_preview_screen.dart';
 import '../features/profile/presentation/screens/qr_scanner_screen.dart';
+import '../features/settings/presentation/screens/settings_screen.dart';
 import '../features/splash/presentation/screens/splash_screen.dart';
 import '../features/time_capsule/domain/entities/story_owner_bucket.dart';
 import '../features/time_capsule/presentation/screens/story_viewer_screen.dart';
@@ -23,9 +28,25 @@ import 'app_routes.dart';
 class AppPages {
   AppPages._();
 
+  static const _publicPaths = <String>{
+    AppRoutes.splash,
+    AppRoutes.login,
+    AppRoutes.register,
+    AppRoutes.forgotPassword,
+    AppRoutes.accountCreated,
+    AppRoutes.terms,
+    AppRoutes.privacy,
+  };
+
+  static final GoRouterAuthRefresh _authRefresh = GoRouterAuthRefresh(
+    FirebaseAuth.instance.authStateChanges(),
+  );
+
   static final GoRouter router = GoRouter(
     initialLocation: AppRoutes.splash,
+    refreshListenable: _authRefresh,
     observers: [VelixNavObserver()],
+    redirect: _redirect,
     routes: [
       GoRoute(
         path: AppRoutes.splash,
@@ -73,6 +94,11 @@ class AppPages {
       GoRoute(
         path: AppRoutes.profile,
         builder: (context, state) => const MyProfileScreen(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (context, state) => const SettingsScreen(),
       ),
 
       GoRoute(
@@ -135,4 +161,29 @@ class AppPages {
       ),
     ],
   );
+
+  static String? _redirect(BuildContext context, GoRouterState state) {
+    final loggedIn = FirebaseAuth.instance.currentUser != null;
+    final loc = state.matchedLocation;
+    final isPublic = _publicPaths.contains(loc);
+
+    if (!loggedIn && !isPublic) {
+      return AppRoutes.login;
+    }
+
+    // Require second-factor completion (when applicable) before protected routes.
+    if (loggedIn &&
+        !SessionSecurityGate.isSecondFactorVerified &&
+        !isPublic) {
+      return AppRoutes.splash;
+    }
+
+    if (loggedIn &&
+        SessionSecurityGate.isSecondFactorVerified &&
+        (loc == AppRoutes.login || loc == AppRoutes.register)) {
+      return AppRoutes.home;
+    }
+
+    return null;
+  }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/security/secure_storage_providers.dart';
+import '../../../../core/security/secure_storage_service.dart';
 import '../../domain/entities/recovery_account.dart';
 import '../../domain/usecases/find_account_for_recovery_usecase.dart';
 import '../../domain/usecases/reset_password_usecase.dart';
@@ -28,6 +30,8 @@ class PasswordRecoveryState {
 
   final PasswordRecoveryStep step;
   final RecoveryAccount? account;
+
+  /// Held in memory only for the active recovery flow — never written to disk.
   final String recoverySecurityKey;
   final bool recoveryKeyVerified;
   final bool totpVerified;
@@ -84,6 +88,7 @@ final passwordRecoveryProvider = StateNotifierProvider.autoDispose<
     verifyRecoveryKey: ref.read(verifyRecoveryKeyUseCaseProvider),
     verifyTotp: ref.read(verifyTotpUseCaseProvider),
     resetPassword: ref.read(resetPasswordUseCaseProvider),
+    secureStorage: ref.read(secureStorageServiceProvider),
   );
 });
 
@@ -93,19 +98,36 @@ class PasswordRecoveryNotifier extends StateNotifier<PasswordRecoveryState> {
     required this.verifyRecoveryKey,
     required this.verifyTotp,
     required this.resetPassword,
+    required this.secureStorage,
   }) : super(const PasswordRecoveryState());
 
   final FindAccountForRecoveryUseCase findAccount;
   final VerifyRecoveryKeyUseCase verifyRecoveryKey;
   final VerifyTotpUseCase verifyTotp;
   final ResetPasswordUseCase resetPassword;
+  final SecureStorageService secureStorage;
+
+  Future<void> _persistProgress() async {
+    final account = state.account;
+    if (account == null) return;
+    await secureStorage.saveRecoveryProgress(
+      uid: account.uid,
+      velixId: account.velixId,
+      username: account.username,
+      step: state.step.name,
+      twoStepEnabled: account.twoStepVerificationEnabled,
+      recoveryKeyVerified: state.recoveryKeyVerified,
+      totpVerified: state.totpVerified,
+    );
+  }
 
   void clearError() {
     state = state.copyWith(clearError: true);
   }
 
-  void reset() {
+  Future<void> reset() async {
     state = const PasswordRecoveryState();
+    await secureStorage.clearRecoveryProgress();
   }
 
   Future<bool> submitIdentifier(String identifier) async {
@@ -121,6 +143,7 @@ class PasswordRecoveryNotifier extends StateNotifier<PasswordRecoveryState> {
         totpVerified: false,
         recoverySecurityKey: '',
       );
+      await _persistProgress();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -152,10 +175,12 @@ class PasswordRecoveryNotifier extends StateNotifier<PasswordRecoveryState> {
 
       state = state.copyWith(
         isLoading: false,
+        // Memory only — never persisted to secure storage.
         recoverySecurityKey: recoverySecurityKey.trim(),
         recoveryKeyVerified: true,
         step: nextStep,
       );
+      await _persistProgress();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -182,6 +207,7 @@ class PasswordRecoveryNotifier extends StateNotifier<PasswordRecoveryState> {
         totpVerified: true,
         step: PasswordRecoveryStep.newPassword,
       );
+      await _persistProgress();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -222,6 +248,7 @@ class PasswordRecoveryNotifier extends StateNotifier<PasswordRecoveryState> {
         step: PasswordRecoveryStep.success,
         recoverySecurityKey: '',
       );
+      await secureStorage.clearRecoveryProgress();
       return true;
     } catch (e) {
       state = state.copyWith(

@@ -13,6 +13,7 @@ import '../../../profile/presentation/screens/my_profile_screen.dart';
 import '../../../contacts/presentation/widgets/add_friend_sheet.dart';
 import '../../../notifications/presentation/providers/notifications_provider.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../settings/presentation/providers/settings_feature_providers.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -20,6 +21,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = ref.watch(currentUserProvider);
+    ref.watch(deviceSessionBootstrapProvider);
 
     navLog('Home', 'build', {
       'phase': 'HomeScreen',
@@ -71,7 +73,8 @@ class _HomeContent extends ConsumerStatefulWidget {
   ConsumerState<_HomeContent> createState() => _HomeContentState();
 }
 
-class _HomeContentState extends ConsumerState<_HomeContent> {
+class _HomeContentState extends ConsumerState<_HomeContent>
+    with WidgetsBindingObserver {
   final TextEditingController _searchController =
       TextEditingController();
   int _tabIndex = 0;
@@ -79,9 +82,17 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     navLog('Home', 'initState', {
       'currentUser': widget.user?.uid,
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(deviceSessionBootstrapProvider);
+    }
   }
 
   @override
@@ -96,6 +107,7 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     navLog('Home', 'dispose', {
       'currentUser': widget.user?.uid,
     });
@@ -165,71 +177,68 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
                 ),
               ],
             ),
-      body: IndexedStack(
-        index: _tabIndex,
-        children: [
-          SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                if (homeState.isSearchActive)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: TextField(
-                        controller: _searchController,
-                        autofocus: true,
-                        textInputAction: TextInputAction.search,
-                        onChanged: (value) {
-                          ref
-                              .read(homeProvider.notifier)
-                              .updateSearch(value);
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search chats...',
-                          prefixIcon: const Icon(Icons.search_rounded),
-                          suffixIcon: homeState.searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.close_rounded),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    ref
-                                        .read(homeProvider.notifier)
-                                        .clearSearch();
-                                  },
-                                )
-                              : null,
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
+      // Mount only the active tab so Calls listeners are not live on Chats.
+      body: _tabIndex == 0
+          ? SafeArea(
+              child: CustomScrollView(
+                slivers: [
+                  if (homeState.isSearchActive)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: true,
+                          textInputAction: TextInputAction.search,
+                          onChanged: (value) {
+                            ref
+                                .read(homeProvider.notifier)
+                                .updateSearch(value);
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Search chats...',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            suffixIcon: homeState.searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.close_rounded),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      ref
+                                          .read(homeProvider.notifier)
+                                          .clearSearch();
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                           ),
                         ),
                       ),
                     ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 12),
                   ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 12),
-                ),
-                const SliverToBoxAdapter(
-                  child: TimeCapsuleSection(),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 16),
-                ),
-                const RecentChatList(),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 80),
-                ),
-              ],
-            ),
-          ),
-          const CallHistoryScreen(showAppBar: false),
-        ],
-      ),
+                  const SliverToBoxAdapter(
+                    child: TimeCapsuleSection(),
+                  ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 16),
+                  ),
+                  const RecentChatList(),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 80),
+                  ),
+                ],
+              ),
+            )
+          : const CallHistoryScreen(showAppBar: false),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,
         onDestinationSelected: (index) {

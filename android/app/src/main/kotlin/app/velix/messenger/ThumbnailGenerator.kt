@@ -1,4 +1,4 @@
-package com.example.velix_messenger
+package app.velix.messenger
 
 import android.content.Context
 import android.graphics.Bitmap

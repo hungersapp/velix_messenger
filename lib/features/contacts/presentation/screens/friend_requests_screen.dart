@@ -66,7 +66,7 @@ class _FriendRequestsScreenState extends ConsumerState<FriendRequestsScreen> {
       ref.invalidate(friendsProvider);
       ref.invalidate(contactsProvider);
       ref.invalidate(syncContactsUseCaseProvider);
-      ref.invalidate(conversationProvider(currentUser.uid));
+      ref.invalidate(chatConversationsProvider(currentUser.uid));
 
       if (!mounted) return;
       setState(() {

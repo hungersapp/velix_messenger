@@ -14,6 +14,12 @@ class RecoveryKeyHasher {
     required String recoverySecurityKey,
     required String storedHash,
   }) {
-    return hash(recoverySecurityKey) == storedHash;
+    final computed = hash(recoverySecurityKey);
+    if (computed.length != storedHash.length) return false;
+    var diff = 0;
+    for (var i = 0; i < computed.length; i++) {
+      diff |= computed.codeUnitAt(i) ^ storedHash.codeUnitAt(i);
+    }
+    return diff == 0;
   }
 }

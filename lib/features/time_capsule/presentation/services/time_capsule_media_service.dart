@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
@@ -44,53 +45,95 @@ class TimeCapsuleMediaService {
   Future<TimeCapsulePickedMedia?> pickImage({
     required ImageSource source,
   }) async {
-    final XFile? picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 100,
-    );
-    if (picked == null) return null;
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 100,
+      );
+      if (picked == null) return null;
 
-    final compressed = await _compressImage(File(picked.path));
-    return TimeCapsulePickedMedia(
-      file: compressed,
-      mediaType: 'image',
-      durationMs: defaultImageDurationMs,
-    );
+      final compressed = await _compressImage(File(picked.path));
+      return TimeCapsulePickedMedia(
+        file: compressed,
+        mediaType: 'image',
+        durationMs: defaultImageDurationMs,
+      );
+    } on PlatformException catch (e) {
+      throw TimeCapsuleMediaException(_mapPickerError(e, source: source));
+    } on TimeCapsuleMediaException {
+      rethrow;
+    } catch (_) {
+      throw TimeCapsuleMediaException(
+        'Unable to open the photo picker. Please try again.',
+      );
+    }
   }
 
   Future<TimeCapsulePickedMedia?> pickVideo({
     required ImageSource source,
   }) async {
-    final XFile? picked = await _picker.pickVideo(
-      source: source,
-      maxDuration: maxVideoDuration,
-    );
-    if (picked == null) return null;
-
-    final file = File(picked.path);
-    final durationMs = await _videoDurationMs(file);
-
-    if (durationMs > maxVideoDuration.inMilliseconds) {
-      throw TimeCapsuleMediaException(
-        'Video must be 30 seconds or less.',
-      );
-    }
-
-    String? thumbnailPath;
     try {
-      thumbnailPath = await NativeThumbnailService.generateThumbnail(
-        videoPath: file.path,
+      final XFile? picked = await _picker.pickVideo(
+        source: source,
+        maxDuration: maxVideoDuration,
       );
-    } catch (_) {
-      thumbnailPath = null;
-    }
+      if (picked == null) return null;
 
-    return TimeCapsulePickedMedia(
-      file: file,
-      mediaType: 'video',
-      durationMs: durationMs <= 0 ? defaultImageDurationMs : durationMs,
-      thumbnailPath: thumbnailPath,
-    );
+      final file = File(picked.path);
+      final durationMs = await _videoDurationMs(file);
+
+      if (durationMs > maxVideoDuration.inMilliseconds) {
+        throw TimeCapsuleMediaException(
+          'Video must be 30 seconds or less.',
+        );
+      }
+
+      String? thumbnailPath;
+      try {
+        thumbnailPath = await NativeThumbnailService.generateThumbnail(
+          videoPath: file.path,
+        );
+      } catch (_) {
+        thumbnailPath = null;
+      }
+
+      return TimeCapsulePickedMedia(
+        file: file,
+        mediaType: 'video',
+        durationMs: durationMs <= 0 ? defaultImageDurationMs : durationMs,
+        thumbnailPath: thumbnailPath,
+      );
+    } on PlatformException catch (e) {
+      throw TimeCapsuleMediaException(_mapPickerError(e, source: source));
+    } on TimeCapsuleMediaException {
+      rethrow;
+    } catch (_) {
+      throw TimeCapsuleMediaException(
+        'Unable to open the video picker. Please try again.',
+      );
+    }
+  }
+
+  static String _mapPickerError(
+    PlatformException e, {
+    required ImageSource source,
+  }) {
+    final code = e.code.toLowerCase();
+    final message = (e.message ?? '').toLowerCase();
+    final isCamera = source == ImageSource.camera;
+    if (code.contains('photo') ||
+        code.contains('camera') ||
+        code.contains('permission') ||
+        message.contains('permission') ||
+        message.contains('denied') ||
+        message.contains('access')) {
+      return isCamera
+          ? 'Camera permission is required. Enable it in Settings.'
+          : 'Photo library permission is required. Enable it in Settings.';
+    }
+    return isCamera
+        ? 'Unable to use the camera. Please try again.'
+        : 'Unable to open your photo library. Please try again.';
   }
 
   Future<File> _compressImage(File imageFile) async {

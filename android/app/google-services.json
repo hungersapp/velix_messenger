@@ -7,18 +7,18 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:720571740911:android:9f15d6a0b4c7f25a2aa11a",
+        "mobilesdk_app_id": "1:720571740911:android:2e7c7ba340e94c9c2aa11a",
         "android_client_info": {
-          "package_name": "com.example.velix_messenger"
+          "package_name": "app.velix.messenger"
         }
       },
       "oauth_client": [
         {
-          "client_id": "720571740911-9fopl2eddnqq37rdjtvg5a4ukd73ofmu.apps.googleusercontent.com",
+          "client_id": "720571740911-npami6b9vll5g1q1nbka4buas73a314o.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.velix_messenger",
-            "certificate_hash": "11bf3074a9fb1579211c699cd71a56ba0af7e4bb"
+            "package_name": "app.velix.messenger",
+            "certificate_hash": "2302ad867c9c544eac467a2ed647fdeb2255ea90"
           }
         },
         {

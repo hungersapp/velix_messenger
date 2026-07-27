@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class ChatAppBar extends StatelessWidget
@@ -10,6 +11,7 @@ class ChatAppBar extends StatelessWidget
   final VoidCallback? onMenuPressed;
   final VoidCallback? onVoiceCallPressed;
   final VoidCallback? onVideoCallPressed;
+  final VoidCallback? onBlockPressed;
 
   const ChatAppBar({
     super.key,
@@ -21,6 +23,7 @@ class ChatAppBar extends StatelessWidget
     this.onMenuPressed,
     this.onVoiceCallPressed,
     this.onVideoCallPressed,
+    this.onBlockPressed,
   });
 
   @override
@@ -42,10 +45,9 @@ class ChatAppBar extends StatelessWidget
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundImage:
-                hasProfileImage
-                    ? NetworkImage(profileImageUrl!)
-                    : null,
+            backgroundImage: hasProfileImage
+                ? CachedNetworkImageProvider(profileImageUrl!)
+                : null,
             child: hasProfileImage
                 ? null
                 : Text(
@@ -105,7 +107,19 @@ class ChatAppBar extends StatelessWidget
             icon: const Icon(Icons.videocam),
             tooltip: 'Video call',
           ),
-        if (onMenuPressed != null)
+        if (onBlockPressed != null)
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'block') onBlockPressed?.call();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'block',
+                child: Text('Block user'),
+              ),
+            ],
+          )
+        else if (onMenuPressed != null)
           IconButton(
             onPressed: onMenuPressed,
             icon: const Icon(Icons.more_vert),

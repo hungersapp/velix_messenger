@@ -3,6 +3,11 @@ import '../entities/story_entity.dart';
 abstract class TimeCapsuleRepository {
   Stream<List<StoryEntity>> watchActiveStories();
 
+  Future<List<StoryEntity>> getOlderActiveStories({
+    required String beforeStoryId,
+    int limit = 50,
+  });
+
   Future<String> createStory(StoryEntity story);
 
   Future<void> markStorySeen({

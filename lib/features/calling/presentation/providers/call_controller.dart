@@ -7,6 +7,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../../chat/presentation/providers/chat_provider.dart';
 import '../../../chat/services/camera_permission_service.dart';
 import '../../../chat/services/microphone_permission_service.dart';
+import '../../../settings/presentation/providers/settings_feature_providers.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../../data/datasources/call_remote_datasource_impl.dart';
 import '../../data/repositories/call_repository_impl.dart';
@@ -172,6 +173,23 @@ class CallController extends StateNotifier<CallUiState> {
     if (currentUser == null) {
       state = state.copyWith(errorMessage: 'You must be signed in to call.');
       return false;
+    }
+
+    // Blocked-user guard (settings block list).
+    try {
+      final settingsRepo = _ref.read(settingsRepositoryProvider);
+      final blocked = await settingsRepo.isBlockedEitherWay(
+        userA: currentUser.uid,
+        userB: receiverId,
+      );
+      if (blocked) {
+        state = state.copyWith(
+          errorMessage: 'Calling is unavailable with this user.',
+        );
+        return false;
+      }
+    } catch (_) {
+      // Continue if settings lookup fails.
     }
 
     try {
@@ -520,6 +538,12 @@ class CallController extends StateNotifier<CallUiState> {
           );
         }
       }
+    }, onError: (Object error, StackTrace stackTrace) {
+      debugPrint('watchCall stream error: $error\n$stackTrace');
+      state = state.copyWith(
+        errorMessage: 'Call connection interrupted. Please try again.',
+        statusLabel: 'Connection error',
+      );
     });
   }
 
@@ -539,6 +563,8 @@ class CallController extends StateNotifier<CallUiState> {
           debugPrint('addRemoteCandidate failed: $e');
         }
       }
+    }, onError: (Object error, StackTrace stackTrace) {
+      debugPrint('watchIceCandidates stream error: $error\n$stackTrace');
     });
   }
 

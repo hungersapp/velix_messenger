@@ -54,12 +54,20 @@ class VoicePlaybackController extends StateNotifier<VoicePlaybackState> {
     _positionSub = _player.onPositionChanged.listen((position) {
       if (!mounted) return;
       state = state.copyWith(position: position);
+    }, onError: (Object error, StackTrace stackTrace) {
+      if (!mounted) return;
+      state = state.copyWith(
+        status: VoicePlaybackStatus.error,
+        errorMessage: 'Unable to play this voice message.',
+      );
     });
     _durationSub = _player.onDurationChanged.listen((duration) {
       if (!mounted) return;
       if (duration > Duration.zero) {
         state = state.copyWith(duration: duration);
       }
+    }, onError: (Object error, StackTrace stackTrace) {
+      // Duration stream errors are non-fatal for playback UX.
     });
     _completeSub = _player.onPlayerComplete.listen((_) {
       if (!mounted) return;
@@ -67,6 +75,8 @@ class VoicePlaybackController extends StateNotifier<VoicePlaybackState> {
         status: VoicePlaybackStatus.completed,
         position: state.duration,
       );
+    }, onError: (Object error, StackTrace stackTrace) {
+      // Completion stream errors are non-fatal.
     });
     _stateSub = _player.onPlayerStateChanged.listen((playerState) {
       if (!mounted) return;
@@ -87,6 +97,12 @@ class VoicePlaybackController extends StateNotifier<VoicePlaybackState> {
         case PlayerState.disposed:
           break;
       }
+    }, onError: (Object error, StackTrace stackTrace) {
+      if (!mounted) return;
+      state = state.copyWith(
+        status: VoicePlaybackStatus.error,
+        errorMessage: 'Unable to play this voice message.',
+      );
     });
   }
 

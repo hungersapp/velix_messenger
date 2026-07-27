@@ -6,6 +6,8 @@ class VelixPublicProfile {
     required this.velixId,
     required this.photoUrl,
     this.username = '',
+    this.profilePhotoPrivacy = 'everyone',
+    this.lastSeenPrivacy = 'everyone',
   });
 
   final String uid;
@@ -13,6 +15,8 @@ class VelixPublicProfile {
   final String velixId;
   final String photoUrl;
   final String username;
+  final String profilePhotoPrivacy;
+  final String lastSeenPrivacy;
 
   factory VelixPublicProfile.fromFirestore(Map<String, dynamic> data) {
     return VelixPublicProfile(
@@ -22,6 +26,9 @@ class VelixPublicProfile {
       velixId: data['velixId'] as String? ?? '',
       photoUrl: data['photoUrl'] as String? ?? '',
       username: data['username'] as String? ?? '',
+      profilePhotoPrivacy:
+          data['profilePhotoPrivacy'] as String? ?? 'everyone',
+      lastSeenPrivacy: data['lastSeenPrivacy'] as String? ?? 'everyone',
     );
   }
 }

@@ -60,7 +60,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCUQ-OMOTWBeK2aDXXOaZ4bf7ITr2dsQX0',
-    appId: '1:720571740911:android:9f15d6a0b4c7f25a2aa11a',
+    appId: '1:720571740911:android:2e7c7ba340e94c9c2aa11a',
     messagingSenderId: '720571740911',
     projectId: 'velix-messenger-90f85',
     storageBucket: 'velix-messenger-90f85.firebasestorage.app',

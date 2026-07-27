@@ -195,7 +195,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String velixId,
     required String recoverySecurityKey,
   }) async {
-    final profile = await _requireProfile(velixId);
+    final profile = await _requireProfileWithSecurity(velixId);
     final storedHash = profile['recoverySecurityKey'] as String? ?? '';
     final key = recoverySecurityKey.trim();
 
@@ -213,7 +213,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String velixId,
     required String otp,
   }) async {
-    final profile = await _requireProfile(velixId);
+    final profile = await _requireProfileWithSecurity(velixId);
     final enabled = profile['twoStepVerificationEnabled'] as bool? ?? false;
     if (!enabled) {
       return;
@@ -249,7 +249,7 @@ class AuthRepositoryImpl implements AuthRepository {
       recoverySecurityKey: recoverySecurityKey,
     );
 
-    final profile = await _requireProfile(velixId);
+    final profile = await _requireProfileWithSecurity(velixId);
     final sealed = profile['passwordVault'] as String? ?? '';
     if (sealed.isEmpty) {
       throw Exception(
@@ -293,9 +293,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> signOut() => authService.signOut();
 
-  Future<Map<String, dynamic>> _requireProfile(String velixId) async {
+  Future<Map<String, dynamic>> _requireProfileWithSecurity(String velixId) async {
     final normalized = _normalizeVelixId(velixId);
-    final profile = await userDatasource.findByVelixId(normalized);
+    final profile = await userDatasource.findProfileWithSecurity(normalized);
     if (profile == null) {
       throw Exception('Account not found');
     }

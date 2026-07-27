@@ -23,6 +23,18 @@ class TimeCapsuleRepositoryImpl implements TimeCapsuleRepository {
   }
 
   @override
+  Future<List<StoryEntity>> getOlderActiveStories({
+    required String beforeStoryId,
+    int limit = 50,
+  }) async {
+    final models = await remoteDataSource.getOlderActiveStories(
+      beforeStoryId: beforeStoryId,
+      limit: limit,
+    );
+    return models.map(_toEntity).toList();
+  }
+
+  @override
   Future<String> createStory(StoryEntity story) async {
     await remoteDataSource.createStory(_toModel(story));
     return story.id;

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_dependency_provider.dart';
 import '../../../contacts/presentation/providers/contacts_provider.dart';
+import '../../../home/presentation/providers/peer_user_provider.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../../data/datasources/time_capsule_remote_datasource.dart';
 import '../../data/datasources/time_capsule_remote_datasource_impl.dart';
@@ -14,12 +17,16 @@ import '../../domain/entities/story_owner_bucket.dart';
 import '../../domain/repositories/time_capsule_repository.dart';
 import '../../domain/usecases/create_story_usecase.dart';
 import '../../domain/usecases/delete_story_usecase.dart';
+import '../../domain/usecases/get_older_active_stories_usecase.dart';
 import '../../domain/usecases/get_story_viewers_usecase.dart';
 import '../../domain/usecases/mark_story_seen_usecase.dart';
 import '../../domain/usecases/toggle_story_like_usecase.dart';
 import '../../domain/usecases/watch_active_stories_usecase.dart';
 import '../services/time_capsule_media_service.dart';
 import '../services/time_capsule_share_service.dart';
+
+/// Page size for live window + older Time Capsule fetches.
+const int kTimeCapsulePageSize = 50;
 
 final timeCapsuleRemoteDataSourceProvider =
     Provider<TimeCapsuleRemoteDataSource>(
@@ -42,6 +49,13 @@ final timeCapsuleRepositoryProvider =
 final watchActiveStoriesUseCaseProvider =
     Provider<WatchActiveStoriesUseCase>(
   (ref) => WatchActiveStoriesUseCase(
+    ref.watch(timeCapsuleRepositoryProvider),
+  ),
+);
+
+final getOlderActiveStoriesUseCaseProvider =
+    Provider<GetOlderActiveStoriesUseCase>(
+  (ref) => GetOlderActiveStoriesUseCase(
     ref.watch(timeCapsuleRepositoryProvider),
   ),
 );
@@ -86,9 +100,239 @@ final timeCapsuleShareServiceProvider =
   (ref) => TimeCapsuleShareService(),
 );
 
-/// Active stories from Firestore (expiresAt > now).
-final activeStoriesProvider = StreamProvider<List<StoryEntity>>((ref) {
-  return ref.watch(watchActiveStoriesUseCaseProvider)();
+/// Combined realtime latest page + paginated older active capsules.
+class ActiveStoriesState {
+  const ActiveStoriesState({
+    this.stories = const [],
+    this.isInitialLoading = true,
+    this.isLoadingOlder = false,
+    this.hasMore = true,
+    this.error,
+  });
+
+  final List<StoryEntity> stories;
+  final bool isInitialLoading;
+  final bool isLoadingOlder;
+  final bool hasMore;
+  final Object? error;
+
+  ActiveStoriesState copyWith({
+    List<StoryEntity>? stories,
+    bool? isInitialLoading,
+    bool? isLoadingOlder,
+    bool? hasMore,
+    Object? error,
+    bool clearError = false,
+  }) {
+    return ActiveStoriesState(
+      stories: stories ?? this.stories,
+      isInitialLoading: isInitialLoading ?? this.isInitialLoading,
+      isLoadingOlder: isLoadingOlder ?? this.isLoadingOlder,
+      hasMore: hasMore ?? this.hasMore,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class ActiveStoriesNotifier extends StateNotifier<ActiveStoriesState> {
+  ActiveStoriesNotifier(this.ref) : super(const ActiveStoriesState()) {
+    _subscribeLive();
+  }
+
+  final Ref ref;
+  StreamSubscription<List<StoryEntity>>? _liveSub;
+  List<StoryEntity> _live = const [];
+  List<StoryEntity> _older = const [];
+  bool _loadInFlight = false;
+  final Completer<void> _ready = Completer<void>();
+
+  Future<void> get ready => _ready.future;
+
+  void _subscribeLive() {
+    _liveSub?.cancel();
+    _liveSub = ref.read(watchActiveStoriesUseCaseProvider)().listen(
+      _applyLiveUpdate,
+      onError: (Object e, StackTrace st) {
+        if (!_ready.isCompleted) {
+          _ready.complete();
+        }
+        if (state.stories.isEmpty) {
+          state = state.copyWith(
+            isInitialLoading: false,
+            error: e,
+          );
+        }
+      },
+    );
+  }
+
+  void _applyLiveUpdate(List<StoryEntity> live) {
+    final now = DateTime.now();
+    final liveIds = live.map((s) => s.id).where((id) => id.isNotEmpty).toSet();
+
+    final demoted = <StoryEntity>[];
+    for (final prev in _live) {
+      if (prev.id.isEmpty || liveIds.contains(prev.id)) continue;
+      if (!prev.isActive(now)) continue;
+      final alreadyOlder = _older.any((s) => s.id == prev.id);
+      if (!alreadyOlder) {
+        demoted.add(prev);
+      }
+    }
+
+    _older = [
+      ...demoted,
+      ..._older.where(
+        (s) => s.isActive(now) && !liveIds.contains(s.id),
+      ),
+    ];
+    _live = live.where((s) => s.isActive(now)).toList();
+
+    final hadFirstPage = !state.isInitialLoading;
+    state = state.copyWith(
+      stories: _mergeForDisplay(),
+      isInitialLoading: false,
+      clearError: true,
+      hasMore: hadFirstPage
+          ? state.hasMore
+          : live.length >= kTimeCapsulePageSize,
+    );
+
+    if (!_ready.isCompleted) {
+      _ready.complete();
+    }
+  }
+
+  List<StoryEntity> _queryOrdered(Iterable<StoryEntity> stories) {
+    final list = stories.toList()
+      ..sort((a, b) {
+        final byExp = b.expiresAt.compareTo(a.expiresAt);
+        if (byExp != 0) return byExp;
+        return a.id.compareTo(b.id);
+      });
+    return list;
+  }
+
+  List<StoryEntity> _mergeForDisplay() {
+    final byId = <String, StoryEntity>{};
+    for (final story in _older) {
+      if (story.id.isEmpty) continue;
+      byId[story.id] = story;
+    }
+    for (final story in _live) {
+      if (story.id.isEmpty) continue;
+      byId[story.id] = story;
+    }
+
+    final merged = byId.values.toList()
+      ..sort((a, b) {
+        final byCreated = b.createdAt.compareTo(a.createdAt);
+        if (byCreated != 0) return byCreated;
+        return a.id.compareTo(b.id);
+      });
+    return merged;
+  }
+
+  Future<void> loadOlder() async {
+    if (_loadInFlight ||
+        state.isLoadingOlder ||
+        !state.hasMore ||
+        state.isInitialLoading) {
+      return;
+    }
+
+    final ordered = _queryOrdered([..._live, ..._older]);
+    if (ordered.isEmpty) {
+      state = state.copyWith(hasMore: false);
+      return;
+    }
+
+    final cursorId = ordered.last.id;
+    if (cursorId.isEmpty) {
+      state = state.copyWith(hasMore: false);
+      return;
+    }
+
+    _loadInFlight = true;
+    state = state.copyWith(isLoadingOlder: true, clearError: true);
+
+    try {
+      final page = await ref.read(getOlderActiveStoriesUseCaseProvider)(
+        beforeStoryId: cursorId,
+        limit: kTimeCapsulePageSize,
+      );
+
+      final existingIds = <String>{
+        ..._older.map((s) => s.id),
+        ..._live.map((s) => s.id),
+      };
+      final now = DateTime.now();
+      final fresh = page
+          .where(
+            (s) =>
+                s.id.isNotEmpty &&
+                !existingIds.contains(s.id) &&
+                s.isActive(now),
+          )
+          .toList();
+
+      if (fresh.isNotEmpty) {
+        _older = [..._older, ...fresh];
+      }
+
+      state = state.copyWith(
+        stories: _mergeForDisplay(),
+        isLoadingOlder: false,
+        hasMore: page.length >= kTimeCapsulePageSize,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoadingOlder: false,
+        error: e,
+      );
+    } finally {
+      _loadInFlight = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _liveSub?.cancel();
+    _liveSub = null;
+    super.dispose();
+  }
+}
+
+/// Keep briefly after leaving Home so returning does not re-query immediately.
+final activeStoriesControllerProvider = StateNotifierProvider.autoDispose<
+    ActiveStoriesNotifier, ActiveStoriesState>((ref) {
+  final link = ref.keepAlive();
+  Timer? disposeTimer;
+  ref.onCancel(() {
+    disposeTimer?.cancel();
+    disposeTimer = Timer(const Duration(minutes: 2), link.close);
+  });
+  ref.onResume(() {
+    disposeTimer?.cancel();
+  });
+  ref.onDispose(() {
+    disposeTimer?.cancel();
+  });
+  return ActiveStoriesNotifier(ref);
+});
+
+/// Compatibility AsyncValue view (viewer likes + buckets).
+final activeStoriesProvider =
+    Provider.autoDispose<AsyncValue<List<StoryEntity>>>((ref) {
+  final state = ref.watch(activeStoriesControllerProvider);
+
+  if (state.isInitialLoading && state.stories.isEmpty) {
+    return const AsyncValue.loading();
+  }
+  if (state.error != null && state.stories.isEmpty) {
+    return AsyncValue.error(state.error!, StackTrace.current);
+  }
+  return AsyncValue.data(state.stories);
 });
 
 /// Friend UIDs via existing Contacts sync (Contacts files untouched).
@@ -103,13 +347,14 @@ final timeCapsuleFriendIdsProvider =
 
 /// Home rail + viewer buckets. Your TC first; friends newest / unseen first.
 final storyBucketsProvider =
-    FutureProvider<List<StoryOwnerBucket>>((ref) async {
+    FutureProvider.autoDispose<List<StoryOwnerBucket>>((ref) async {
   final currentUser = ref.watch(currentUserProvider).value;
   if (currentUser == null) {
     return const [];
   }
 
-  final stories = await ref.watch(activeStoriesProvider.future);
+  await ref.watch(activeStoriesControllerProvider.notifier).ready;
+  final stories = ref.watch(activeStoriesControllerProvider).stories;
   final friendIds = await ref.watch(timeCapsuleFriendIdsProvider.future);
   final now = DateTime.now();
 
@@ -129,8 +374,6 @@ final storyBucketsProvider =
     list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
-  final getUser = ref.read(getUserUseCaseProvider);
-
   Future<StoryOwnerBucket> buildBucket(String ownerId) async {
     final ownerStories = byOwner[ownerId] ?? const <StoryEntity>[];
     if (ownerId == currentUser.uid) {
@@ -144,7 +387,7 @@ final storyBucketsProvider =
       );
     }
 
-    final peer = await getUser(ownerId);
+    final peer = await ref.watch(peerUserProvider(ownerId).future);
     return StoryOwnerBucket(
       ownerId: ownerId,
       ownerName: peer?.name.isNotEmpty == true ? peer!.name : 'Velix User',
@@ -159,9 +402,8 @@ final storyBucketsProvider =
     await buildBucket(currentUser.uid),
   ];
 
-  final friendOwnerIds = byOwner.keys
-      .where((id) => id != currentUser.uid)
-      .toList();
+  final friendOwnerIds =
+      byOwner.keys.where((id) => id != currentUser.uid).toList();
 
   final friendBuckets = await Future.wait(
     friendOwnerIds.map(buildBucket),

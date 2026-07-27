@@ -5,6 +5,7 @@ import '../../data/datasources/friend_requests_remote_datasource.dart';
 import '../../data/datasources/friends_remote_datasource.dart';
 import '../../data/datasources/user_discovery_remote_datasource.dart';
 import '../../data/repositories/friends_repository_impl.dart';
+import '../../domain/entities/friend_entity.dart';
 import '../../domain/repositories/friends_repository.dart';
 import '../../domain/usecases/accept_friend_request_usecase.dart';
 import '../../domain/usecases/add_friend_usecase.dart';
@@ -115,23 +116,54 @@ final syncContactsUseCaseProvider = Provider<SyncContactsUseCase>(
 class FriendsNotifier extends StateNotifier<FriendsState> {
   FriendsNotifier({
     required this.getFriendsUseCase,
-    required this.searchFriendsUseCase,
   }) : super(const FriendsState());
 
   final GetFriendsUseCase getFriendsUseCase;
-  final SearchFriendsUseCase searchFriendsUseCase;
+
+  /// In-memory friends cache — search filters locally without re-reading Firestore.
+  List<FriendEntity>? _allFriends;
+  DateTime? _fetchedAt;
+  static const _cacheTtl = Duration(minutes: 2);
+
+  bool get _cacheFresh =>
+      _allFriends != null &&
+      _fetchedAt != null &&
+      DateTime.now().difference(_fetchedAt!) < _cacheTtl;
+
+  Future<List<FriendEntity>> _ensureFriends({bool force = false}) async {
+    if (!force && _cacheFresh) {
+      return _allFriends!;
+    }
+    final friends = await getFriendsUseCase();
+    _allFriends = friends;
+    _fetchedAt = DateTime.now();
+    return friends;
+  }
+
+  List<FriendEntity> _filter(List<FriendEntity> friends, String query) {
+    final search = query.trim().toLowerCase();
+    if (search.isEmpty) return friends;
+    return friends
+        .where(
+          (friend) =>
+              friend.displayName.toLowerCase().contains(search) ||
+              friend.velixId.toLowerCase().contains(search),
+        )
+        .toList();
+  }
 
   Future<void> loadFriends() async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    final query = state.searchQuery;
+    final showSpinner = state.friends.isEmpty;
+    if (showSpinner) {
+      state = state.copyWith(isLoading: true, clearError: true);
+    }
 
     try {
-      final friends = state.searchQuery.trim().isEmpty
-          ? await getFriendsUseCase()
-          : await searchFriendsUseCase(state.searchQuery);
-
+      final friends = await _ensureFriends(force: !_cacheFresh);
       state = state.copyWith(
         isLoading: false,
-        friends: friends,
+        friends: _filter(friends, query),
         clearError: true,
       );
     } catch (e) {
@@ -142,20 +174,34 @@ class FriendsNotifier extends StateNotifier<FriendsState> {
     }
   }
 
-  Future<void> refresh() => loadFriends();
+  Future<void> refresh() async {
+    try {
+      state = state.copyWith(isLoading: state.friends.isEmpty, clearError: true);
+      final friends = await _ensureFriends(force: true);
+      state = state.copyWith(
+        isLoading: false,
+        friends: _filter(friends, state.searchQuery),
+        clearError: true,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
 
   Future<void> search(String query) async {
     state = state.copyWith(
       searchQuery: query,
-      isLoading: true,
       clearError: true,
     );
 
     try {
-      final friends = await searchFriendsUseCase(query);
+      final friends = await _ensureFriends();
       state = state.copyWith(
         isLoading: false,
-        friends: friends,
+        friends: _filter(friends, query),
       );
     } catch (e) {
       state = state.copyWith(
@@ -170,7 +216,6 @@ final friendsProvider =
     StateNotifierProvider<FriendsNotifier, FriendsState>(
   (ref) => FriendsNotifier(
     getFriendsUseCase: ref.watch(getFriendsUseCaseProvider),
-    searchFriendsUseCase: ref.watch(searchFriendsUseCaseProvider),
   ),
 );
 

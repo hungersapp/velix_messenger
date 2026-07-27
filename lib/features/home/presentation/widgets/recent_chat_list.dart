@@ -12,11 +12,57 @@ import '../utils/recent_chat_formatters.dart';
 import 'recent_chat_card.dart';
 
 /// Recent chats section as a sliver for CustomScrollView performance.
-class RecentChatList extends ConsumerWidget {
+class RecentChatList extends ConsumerStatefulWidget {
   const RecentChatList({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecentChatList> createState() => _RecentChatListState();
+}
+
+class _RecentChatListState extends ConsumerState<RecentChatList> {
+  ScrollPosition? _scrollPosition;
+
+  @override
+  void dispose() {
+    _scrollPosition?.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _attachScrollListener();
+  }
+
+  void _attachScrollListener() {
+    final position = Scrollable.maybeOf(context)?.position;
+    if (position == null || identical(position, _scrollPosition)) {
+      return;
+    }
+    _scrollPosition?.removeListener(_onScroll);
+    _scrollPosition = position;
+    _scrollPosition!.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final position = _scrollPosition;
+    if (position == null || !position.hasPixels) return;
+    if (position.pixels < position.maxScrollExtent - 240) return;
+
+    final uid = ref.read(currentUserProvider).valueOrNull?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    ref.read(chatConversationsProvider(uid).notifier).loadOlder();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Re-attach if the scrollable becomes available after first build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _attachScrollListener();
+    });
+
     final currentUser = ref.watch(currentUserProvider).value;
     final searchQuery = ref.watch(
       homeProvider.select((state) => state.searchQuery),
@@ -26,104 +72,118 @@ class RecentChatList extends ConsumerWidget {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    final conversationsAsync = ref.watch(
-      conversationProvider(currentUser.uid),
-    );
+    final chatState = ref.watch(chatConversationsProvider(currentUser.uid));
 
-    return conversationsAsync.when(
-      loading: () => const SliverToBoxAdapter(
+    if (chatState.isInitialLoading && chatState.conversations.isEmpty) {
+      return const SliverToBoxAdapter(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 48),
           child: Center(
             child: CircularProgressIndicator(),
           ),
         ),
-      ),
-      error: (error, _) => SliverToBoxAdapter(
+      );
+    }
+
+    if (chatState.error != null && chatState.conversations.isEmpty) {
+      return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: 20,
             vertical: 32,
           ),
           child: Text(
-            'Unable to load chats\n$error',
+            'Unable to load chats\n${chatState.error}',
             textAlign: TextAlign.center,
           ),
         ),
-      ),
-      data: (conversations) {
-        final visibleConversations = _filterConversations(
-          ref: ref,
-          conversations: conversations,
-          currentUserId: currentUser.uid,
-          searchQuery: searchQuery,
-        );
+      );
+    }
 
-        return SliverMainAxisGroup(
-          slivers: [
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
+    final conversations = chatState.conversations;
+    final visibleConversations = _filterConversations(
+      ref: ref,
+      conversations: conversations,
+      currentUserId: currentUser.uid,
+      searchQuery: searchQuery,
+    );
+
+    return SliverMainAxisGroup(
+      slivers: [
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 8,
+            ),
+            child: Text(
+              'Recent Chats',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        if (conversations.isEmpty)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 32,
+              ),
+              child: Center(
                 child: Text(
-                  'Recent Chats',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'No conversations yet.\nTap + to start a chat.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
                 ),
               ),
             ),
-            if (conversations.isEmpty)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 32,
-                  ),
-                  child: Center(
-                    child: Text(
-                      'No conversations yet.\nTap + to start a chat.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ),
-              )
-            else if (visibleConversations.isEmpty)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 32,
-                  ),
-                  child: Center(
-                    child: Text(
-                      'No chats found.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ),
-              )
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final conversation = visibleConversations[index];
-                    return _RecentChatTile(
-                      conversation: conversation,
-                      currentUserId: currentUser.uid,
-                    );
-                  },
-                  childCount: visibleConversations.length,
+          )
+        else if (visibleConversations.isEmpty)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 32,
+              ),
+              child: Center(
+                child: Text(
+                  'No chats found.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
                 ),
               ),
-          ],
-        );
-      },
+            ),
+          )
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final conversation = visibleConversations[index];
+                return _RecentChatTile(
+                  conversation: conversation,
+                  currentUserId: currentUser.uid,
+                );
+              },
+              childCount: visibleConversations.length,
+            ),
+          ),
+        if (chatState.isLoadingOlder)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

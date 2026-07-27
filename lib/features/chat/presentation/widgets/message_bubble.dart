@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:open_filex/open_filex.dart';
 
 import '../screens/image_viewer_screen.dart';
 import '../screens/video_player_screen.dart';
+import 'chat_cached_image.dart';
 import 'voice_message_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -18,6 +18,7 @@ class MessageBubble extends StatelessWidget {
   final String? thumbnailUrl;
   final String? fileName;
   final int? fileSize;
+  final double fontScale;
 
   const MessageBubble({
     super.key,
@@ -31,6 +32,7 @@ class MessageBubble extends StatelessWidget {
     this.thumbnailUrl,
     this.fileName,
     this.fileSize,
+    this.fontScale = 1.0,
   });
 
   String _formatTime(DateTime dateTime) {
@@ -132,29 +134,7 @@ class MessageBubble extends StatelessWidget {
         tag: mediaUrl!,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: CachedNetworkImage(
-            imageUrl: mediaUrl!,
-            width: 220,
-            height: 220,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => const SizedBox(
-              width: 220,
-              height: 220,
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
-            ),
-            errorWidget: (context, url, error) => const SizedBox(
-              width: 220,
-              height: 220,
-              child: Center(
-                child: Icon(
-                  Icons.broken_image,
-                  size: 50,
-                ),
-              ),
-            ),
-          ),
+          child: ChatImagePreview(imageUrl: mediaUrl!),
         ),
       ),
     )
@@ -187,6 +167,7 @@ class MessageBubble extends StatelessWidget {
     Text(
       message,
       style: theme.textTheme.bodyLarge?.copyWith(
+        fontSize: (theme.textTheme.bodyLarge?.fontSize ?? 16) * fontScale,
         color: isMe
             ? theme.colorScheme.onPrimary
             : theme.colorScheme.onSurface,
@@ -390,27 +371,8 @@ class VideoMessagePreview extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: CachedNetworkImage(
-              imageUrl: thumbnailUrl ?? '',
-              width: 220,
-              height: 220,
-              fit: BoxFit.cover,
-              placeholder: (_, _) => const SizedBox(
-                width: 220,
-                height: 220,
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-              errorWidget: (_, _, _) => Container(
-                width: 220,
-                height: 220,
-                color: Colors.black12,
-                child: const Icon(
-                  Icons.videocam,
-                  size: 50,
-                ),
-              ),
+            child: ChatVideoThumbnailPreview(
+              thumbnailUrl: thumbnailUrl ?? '',
             ),
           ),
           const CircleAvatar(

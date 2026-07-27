@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../../core/firebase/firebase_error_guard.dart';
 import '../models/friend_request_model.dart';
 
 abstract class FriendRequestsRemoteDataSource {
@@ -58,92 +59,104 @@ class FriendRequestsRemoteDataSourceImpl
   }
 
   @override
-  Future<List<FriendRequestModel>> getIncomingRequests() async {
-    final snapshot = await _incoming(_currentUid).get();
+  Future<List<FriendRequestModel>> getIncomingRequests() {
+    return guardFirebase(() async {
+      final snapshot = await _incoming(_currentUid).get();
 
-    final requests = snapshot.docs
-        .map((doc) => FriendRequestModel.fromFirestore(doc.data()))
-        .where((r) => r.fromUid.isNotEmpty)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    return requests;
-  }
-
-  @override
-  Stream<List<FriendRequestModel>> watchIncomingRequests() {
-    return _incoming(_currentUid).snapshots().map((snapshot) {
       final requests = snapshot.docs
           .map((doc) => FriendRequestModel.fromFirestore(doc.data()))
           .where((r) => r.fromUid.isNotEmpty)
           .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
       return requests;
     });
   }
 
   @override
-  Future<bool> hasOutgoingRequest(String toUid) async {
-    if (toUid.isEmpty) return false;
-    final doc = await _outgoing(_currentUid).doc(toUid).get();
-    return doc.exists;
+  Stream<List<FriendRequestModel>> watchIncomingRequests() {
+    return guardFirebaseStream(
+      _incoming(_currentUid).snapshots().map((snapshot) {
+        final requests = snapshot.docs
+            .map((doc) => FriendRequestModel.fromFirestore(doc.data()))
+            .where((r) => r.fromUid.isNotEmpty)
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return requests;
+      }),
+    );
   }
 
   @override
-  Future<bool> hasIncomingRequestFrom(String fromUid) async {
-    if (fromUid.isEmpty) return false;
-    final doc = await _incoming(_currentUid).doc(fromUid).get();
-    return doc.exists;
+  Future<bool> hasOutgoingRequest(String toUid) {
+    return guardFirebase(() async {
+      if (toUid.isEmpty) return false;
+      final doc = await _outgoing(_currentUid).doc(toUid).get();
+      return doc.exists;
+    });
+  }
+
+  @override
+  Future<bool> hasIncomingRequestFrom(String fromUid) {
+    return guardFirebase(() async {
+      if (fromUid.isEmpty) return false;
+      final doc = await _incoming(_currentUid).doc(fromUid).get();
+      return doc.exists;
+    });
   }
 
   @override
   Future<void> sendRequest({
     required FriendRequestModel outgoingPayload,
     required FriendRequestModel incomingPayload,
-  }) async {
-    final fromUid = outgoingPayload.fromUid;
-    final toUid = outgoingPayload.toUid;
+  }) {
+    return guardFirebase(() async {
+      final fromUid = outgoingPayload.fromUid;
+      final toUid = outgoingPayload.toUid;
 
-    if (fromUid.isEmpty || toUid.isEmpty || fromUid == toUid) {
-      throw Exception('Invalid friend request.');
-    }
+      if (fromUid.isEmpty || toUid.isEmpty || fromUid == toUid) {
+        throw Exception('Invalid friend request.');
+      }
 
-    final existingOut = await _outgoing(fromUid).doc(toUid).get();
-    if (existingOut.exists) return;
+      final existingOut = await _outgoing(fromUid).doc(toUid).get();
+      if (existingOut.exists) return;
 
-    final existingIn = await _incoming(toUid).doc(fromUid).get();
-    if (existingIn.exists) return;
+      final existingIn = await _incoming(toUid).doc(fromUid).get();
+      if (existingIn.exists) return;
 
-    final now = Timestamp.now();
-    final batch = _firestore.batch();
+      final now = Timestamp.now();
+      final batch = _firestore.batch();
 
-    batch.set(
-      _outgoing(fromUid).doc(toUid),
-      {
-        ...outgoingPayload.toFirestore(),
-        'createdAt': now,
-      },
-    );
+      batch.set(
+        _outgoing(fromUid).doc(toUid),
+        {
+          ...outgoingPayload.toFirestore(),
+          'createdAt': now,
+        },
+      );
 
-    batch.set(
-      _incoming(toUid).doc(fromUid),
-      {
-        ...incomingPayload.toFirestore(),
-        'createdAt': now,
-      },
-    );
+      batch.set(
+        _incoming(toUid).doc(fromUid),
+        {
+          ...incomingPayload.toFirestore(),
+          'createdAt': now,
+        },
+      );
 
-    await batch.commit();
+      await batch.commit();
+    });
   }
 
   @override
   Future<void> deleteRequest({
     required String fromUid,
     required String toUid,
-  }) async {
-    final batch = _firestore.batch();
-    batch.delete(_outgoing(fromUid).doc(toUid));
-    batch.delete(_incoming(toUid).doc(fromUid));
-    await batch.commit();
+  }) {
+    return guardFirebase(() async {
+      final batch = _firestore.batch();
+      batch.delete(_outgoing(fromUid).doc(toUid));
+      batch.delete(_incoming(toUid).doc(fromUid));
+      await batch.commit();
+    });
   }
 }

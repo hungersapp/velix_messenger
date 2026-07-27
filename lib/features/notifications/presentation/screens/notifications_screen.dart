@@ -129,7 +129,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       ref.invalidate(friendsProvider);
       ref.invalidate(contactsProvider);
       ref.invalidate(syncContactsUseCaseProvider);
-      ref.invalidate(conversationProvider(currentUser.uid));
+      ref.invalidate(chatConversationsProvider(currentUser.uid));
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
